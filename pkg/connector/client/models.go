@@ -36,5 +36,5 @@ type TeamMember struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
 	Version   int    `json:"version"`
-	Verified  string `json:"verified"`
+	Verified  bool   `json:"verified"`
 }

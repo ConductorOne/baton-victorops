@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 )
 
@@ -25,7 +26,7 @@ func (c *VictorOpsClient) ListTeamMembers(ctx context.Context, teamId string) ([
 
 	var response Response
 
-	endPoint := c.getUrl(TeamMembersEndpoint)
+	endPoint := c.getUrl(fmt.Sprintf(TeamMembersEndpoint, teamId))
 
 	err := c.request(ctx, http.MethodGet, endPoint, &response, nil)
 	if err != nil {
@@ -42,7 +43,7 @@ func (c *VictorOpsClient) ListTeamAdmins(ctx context.Context, teamId string) ([]
 
 	var response Response
 
-	endPoint := c.getUrl(TeamAdminsEndpoint)
+	endPoint := c.getUrl(fmt.Sprintf(TeamMembersEndpoint, teamId))
 
 	err := c.request(ctx, http.MethodGet, endPoint, &response, nil)
 	if err != nil {
@@ -50,4 +51,34 @@ func (c *VictorOpsClient) ListTeamAdmins(ctx context.Context, teamId string) ([]
 	}
 
 	return response.TeamAdmins, nil
+}
+
+func (c *VictorOpsClient) AddUserTeam(ctx context.Context, teamId, username string) error {
+	type Body struct {
+		Username string `json:"username"`
+	}
+
+	body := Body{
+		Username: username,
+	}
+
+	endPoint := c.getUrl(fmt.Sprintf(AddTeamMemberEndpoint, teamId))
+
+	err := c.request(ctx, http.MethodPost, endPoint, nil, body)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username string) error {
+	endPoint := c.getUrl(fmt.Sprintf(RemoveTeamMemberEndpoint, teamId, username))
+
+	err := c.request(ctx, http.MethodPost, endPoint, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

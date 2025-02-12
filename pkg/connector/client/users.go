@@ -22,9 +22,7 @@ func (c *VictorOpsClient) ListUsers(ctx context.Context) ([]User, error) {
 	var userResponse []User
 
 	for _, users := range response.Users {
-		for _, user := range users {
-			userResponse = append(userResponse, user)
-		}
+		userResponse = append(userResponse, users...)
 	}
 
 	return userResponse, nil

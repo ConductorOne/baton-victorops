@@ -17,6 +17,9 @@ var (
 	TeamsEndpoint       = "/api-public/v1/team"
 	TeamMembersEndpoint = "/api-public/v1/team/%s/members"
 	TeamAdminsEndpoint  = "/api-public/v1/team/%s/admins"
+
+	AddTeamMemberEndpoint    = "/api-public/v1/team/%s/members"
+	RemoveTeamMemberEndpoint = "/api-public/v1/team/%s/members/%s"
 )
 
 type VictorOpsClient struct {

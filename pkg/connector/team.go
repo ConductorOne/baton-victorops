@@ -11,6 +11,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
+	"github.com/conductorone/baton-sdk/pkg/types/grant"
 )
 
 var (
@@ -63,7 +64,7 @@ func teamResource(team *client.Team) (*v2.Resource, error) {
 	return rs.NewResource(
 		team.Name,
 		teamResourceType,
-		team.Name,
+		team.Slug,
 		teamTraitOptions,
 	)
 }
@@ -90,7 +91,74 @@ func (o *teamBuilder) Entitlements(_ context.Context, resource *v2.Resource, _ *
 
 // Grants always returns an empty slice for users since they don't have any entitlements.
 func (o *teamBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+	teamId := resource.Id.Resource
+
+	listUsers, err := o.client.ListTeamMembers(ctx, teamId)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	rv := make([]*v2.Grant, len(listUsers))
+	for i, user := range listUsers {
+		userId, err := rs.NewResourceID(userResourceType, user.Username)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		userGrant := grant.NewGrant(resource, teamMemberEntitlement, userId)
+
+		rv[i] = userGrant
+	}
+
+	adminUsers, err := o.client.ListTeamAdmins(ctx, teamId)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	for _, user := range adminUsers {
+		userId, err := rs.NewResourceID(userResourceType, user.Username)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		userGrant := grant.NewGrant(resource, teamAdminEntitlement, userId, grant.WithAnnotation(&v2.GrantImmutable{}))
+
+		rv = append(rv, userGrant)
+	}
+
+	return rv, "", nil, nil
+}
+
+func (o *teamBuilder) Grant(ctx context.Context, resource *v2.Resource, entitlement *v2.Entitlement) ([]*v2.Grant, annotations.Annotations, error) {
+	if entitlement.DisplayName != teamMemberEntitlement {
+		return nil, nil, fmt.Errorf("entitlement %s is not supported", entitlement.DisplayName)
+	}
+
+	teamId := resource.Id.Resource
+	userId := entitlement.Resource.Id.Resource
+
+	err := o.client.AddUserTeam(ctx, teamId, userId)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return []*v2.Grant{grant.NewGrant(resource, entitlement.Id, entitlement.Resource.Id)}, nil, nil
+}
+
+func (o *teamBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
+	if grant.Entitlement.DisplayName != teamMemberEntitlement {
+		return nil, fmt.Errorf("entitlement %s is not supported", grant.Entitlement.DisplayName)
+	}
+
+	teamId := grant.Entitlement.Resource.Id.Resource
+	userId := grant.Entitlement.Resource.Id.Resource
+
+	err := o.client.RemoveUserTeam(ctx, teamId, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }
 
 func newTeamBuilder(client *client.VictorOpsClient) *teamBuilder {
