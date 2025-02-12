@@ -6,7 +6,11 @@ import (
 )
 
 func (c *VictorOpsClient) ListUsers(ctx context.Context) ([]User, error) {
-	var response []User
+	type Response struct {
+		Users [][]User `json:"users"`
+	}
+
+	var response Response
 
 	endPoint := c.getUrl(UsersEndpoint)
 
@@ -15,5 +19,13 @@ func (c *VictorOpsClient) ListUsers(ctx context.Context) ([]User, error) {
 		return nil, err
 	}
 
-	return response, nil
+	var userResponse []User
+
+	for _, users := range response.Users {
+		for _, user := range users {
+			userResponse = append(userResponse, user)
+		}
+	}
+
+	return userResponse, nil
 }

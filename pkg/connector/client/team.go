@@ -19,7 +19,11 @@ func (c *VictorOpsClient) ListTeams(ctx context.Context) ([]Team, error) {
 }
 
 func (c *VictorOpsClient) ListTeamMembers(ctx context.Context, teamId string) ([]TeamMember, error) {
-	var response []TeamMember
+	type Response struct {
+		TeamMembers []TeamMember `json:"members"`
+	}
+
+	var response Response
 
 	endPoint := c.getUrl(TeamMembersEndpoint)
 
@@ -28,11 +32,15 @@ func (c *VictorOpsClient) ListTeamMembers(ctx context.Context, teamId string) ([
 		return nil, err
 	}
 
-	return response, nil
+	return response.TeamMembers, nil
 }
 
 func (c *VictorOpsClient) ListTeamAdmins(ctx context.Context, teamId string) ([]TeamMemberAdmin, error) {
-	var response []TeamMemberAdmin
+	type Response struct {
+		TeamAdmins []TeamMemberAdmin `json:"teamAdmins"`
+	}
+
+	var response Response
 
 	endPoint := c.getUrl(TeamAdminsEndpoint)
 
@@ -41,5 +49,5 @@ func (c *VictorOpsClient) ListTeamAdmins(ctx context.Context, teamId string) ([]
 		return nil, err
 	}
 
-	return response, nil
+	return response.TeamAdmins, nil
 }
