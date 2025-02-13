@@ -130,12 +130,12 @@ func (o *teamBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken 
 }
 
 func (o *teamBuilder) Grant(ctx context.Context, resource *v2.Resource, entitlement *v2.Entitlement) ([]*v2.Grant, annotations.Annotations, error) {
-	if entitlement.DisplayName != teamMemberEntitlement {
-		return nil, nil, fmt.Errorf("entitlement %s is not supported", entitlement.DisplayName)
+	if entitlement.Slug != teamMemberEntitlement {
+		return nil, nil, fmt.Errorf("entitlement %s is not supported", entitlement.Slug)
 	}
 
-	teamId := resource.Id.Resource
-	userId := entitlement.Resource.Id.Resource
+	teamId := entitlement.Resource.Id.Resource
+	userId := resource.Id.Resource
 
 	err := o.client.AddUserTeam(ctx, teamId, userId)
 	if err != nil {
@@ -146,12 +146,12 @@ func (o *teamBuilder) Grant(ctx context.Context, resource *v2.Resource, entitlem
 }
 
 func (o *teamBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
-	if grant.Entitlement.DisplayName != teamMemberEntitlement {
-		return nil, fmt.Errorf("entitlement %s is not supported", grant.Entitlement.DisplayName)
+	if grant.Entitlement.Slug != teamMemberEntitlement {
+		return nil, fmt.Errorf("entitlement %s is not supported", grant.Entitlement.Slug)
 	}
 
 	teamId := grant.Entitlement.Resource.Id.Resource
-	userId := grant.Entitlement.Resource.Id.Resource
+	userId := grant.Principal.Id.Resource
 
 	err := o.client.RemoveUserTeam(ctx, teamId, userId)
 	if err != nil {

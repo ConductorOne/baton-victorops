@@ -75,7 +75,10 @@ func (c *VictorOpsClient) AddUserTeam(ctx context.Context, teamId, username stri
 func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username string) error {
 	endPoint := c.getUrl(fmt.Sprintf(RemoveTeamMemberEndpoint, teamId, username))
 
-	err := c.request(ctx, http.MethodPost, endPoint, nil, nil)
+	body := struct {
+	}{}
+
+	err := c.request(ctx, http.MethodDelete, endPoint, nil, body)
 	if err != nil {
 		return err
 	}
