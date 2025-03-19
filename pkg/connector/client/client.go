@@ -20,6 +20,7 @@ var (
 
 	AddTeamMemberEndpoint    = "/api-public/v1/team/%s/members"
 	RemoveTeamMemberEndpoint = "/api-public/v1/team/%s/members/%s"
+	OnCallCurrentEndpoint    = "/api-public/v1/oncall/current"
 )
 
 type VictorOpsClient struct {
@@ -47,6 +48,7 @@ func NewVictorOpsClient(ctx context.Context, clientId, apiKey string) (*VictorOp
 		baseUrl:    baseUrl,
 	}, nil
 }
+
 func (c *VictorOpsClient) getUrl(endPoint string) *url.URL {
 	return c.baseUrl.JoinPath(endPoint)
 }
