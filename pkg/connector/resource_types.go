@@ -19,6 +19,12 @@ var teamResourceType = &v2.ResourceType{
 	Traits:      []v2.ResourceType_Trait{v2.ResourceType_TRAIT_GROUP},
 }
 
+var scheduleResourceType = &v2.ResourceType{
+	Id:          "schedule",
+	DisplayName: "Schedule",
+	Traits:      []v2.ResourceType_Trait{v2.ResourceType_TRAIT_GROUP},
+}
+
 func getSkippEntitlementsAndGrantsAnnotations() annotations.Annotations {
 	annotations := annotations.Annotations{}
 	annotations.Update(&v2.SkipEntitlementsAndGrants{})

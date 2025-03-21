@@ -85,3 +85,16 @@ func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username s
 
 	return nil
 }
+
+func (c *VictorOpsClient) ListCurrentOnCallTeamsWithUsers(ctx context.Context) (*TeamsOnCallResponse, error) {
+	response := &TeamsOnCallResponse{}
+
+	endPoint := c.getUrl(OnCallCurrentEndpoint)
+
+	err := c.request(ctx, http.MethodGet, endPoint, response, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
