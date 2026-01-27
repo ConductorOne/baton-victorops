@@ -8,8 +8,8 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/connectorrunner"
-	"github.com/conductorone/baton-sdk/pkg/field"
 	"github.com/conductorone/baton-sdk/pkg/types"
+	cfg "github.com/conductorone/baton-victorops/pkg/config"
 	"github.com/conductorone/baton-victorops/pkg/connector"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/spf13/viper"
@@ -25,9 +25,7 @@ func main() {
 		ctx,
 		"baton-victorops",
 		getConnector,
-		field.Configuration{
-			Fields: ConfigurationFields,
-		},
+		cfg.Config,
 		connectorrunner.WithDefaultCapabilitiesConnectorBuilder(&connector.Connector{}),
 	)
 	if err != nil {
@@ -50,8 +48,8 @@ func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, e
 		return nil, err
 	}
 
-	clientId := v.GetString(VictorOpsApiIdField.FieldName)
-	apiKey := v.GetString(VictorOpsApiKeyField.FieldName)
+	clientId := v.GetString(cfg.VictorOpsApiIdField.FieldName)
+	apiKey := v.GetString(cfg.VictorOpsApiKeyField.FieldName)
 
 	cb, err := connector.New(ctx, clientId, apiKey)
 	if err != nil {

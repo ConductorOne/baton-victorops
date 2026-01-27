@@ -5,12 +5,13 @@ import (
 
 	"github.com/conductorone/baton-sdk/pkg/field"
 	"github.com/conductorone/baton-sdk/pkg/test"
+	cfg "github.com/conductorone/baton-victorops/pkg/config"
 )
 
 func TestConfigs(t *testing.T) {
 	configurationSchema := field.NewConfiguration(
-		ConfigurationFields,
-		field.WithConstraints(FieldRelationships...),
+		cfg.ConfigurationFields,
+		field.WithConstraints(cfg.FieldRelationships...),
 	)
 
 	testCases := []test.TestCase{
