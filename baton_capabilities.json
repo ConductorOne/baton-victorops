@@ -1,21 +1,55 @@
 {
-  "@type": "type.googleapis.com/c1.connector.v2.ConnectorCapabilities",
-  "resourceTypeCapabilities": [
+  "@type":  "type.googleapis.com/c1.connector.v2.ConnectorCapabilities",
+  "resourceTypeCapabilities":  [
     {
-      "resourceType": {
-        "id": "user",
-        "displayName": "User",
-        "traits": [
-          "TRAIT_USER"
+      "resourceType":  {
+        "id":  "schedule",
+        "displayName":  "Schedule",
+        "traits":  [
+          "TRAIT_GROUP"
         ]
       },
-      "capabilities": [
+      "capabilities":  [
         "CAPABILITY_SYNC"
-      ]
+      ],
+      "permissions":  {}
+    },
+    {
+      "resourceType":  {
+        "id":  "team",
+        "displayName":  "Team",
+        "traits":  [
+          "TRAIT_GROUP"
+        ]
+      },
+      "capabilities":  [
+        "CAPABILITY_SYNC",
+        "CAPABILITY_PROVISION"
+      ],
+      "permissions":  {}
+    },
+    {
+      "resourceType":  {
+        "id":  "user",
+        "displayName":  "User",
+        "traits":  [
+          "TRAIT_USER"
+        ],
+        "annotations":  [
+          {
+            "@type":  "type.googleapis.com/c1.connector.v2.SkipEntitlementsAndGrants"
+          }
+        ]
+      },
+      "capabilities":  [
+        "CAPABILITY_SYNC"
+      ],
+      "permissions":  {}
     }
   ],
-  "connectorCapabilities": [
+  "connectorCapabilities":  [
+    "CAPABILITY_PROVISION",
     "CAPABILITY_SYNC"
   ],
-  "credentialDetails": {}
+  "credentialDetails":  {}
 }
