@@ -7,11 +7,10 @@ import (
 
 	"github.com/conductorone/baton-sdk/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
-	"github.com/conductorone/baton-sdk/pkg/field"
 	"github.com/conductorone/baton-sdk/pkg/types"
+	cfg "github.com/conductorone/baton-victorops/pkg/config"
 	"github.com/conductorone/baton-victorops/pkg/connector"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -24,9 +23,7 @@ func main() {
 		ctx,
 		"baton-victorops",
 		getConnector,
-		field.Configuration{
-			Fields: ConfigurationFields,
-		},
+		cfg.Config,
 	)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
@@ -42,16 +39,13 @@ func main() {
 	}
 }
 
-func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, error) {
+func getConnector(ctx context.Context, vc *cfg.Victorops) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
-	if err := ValidateConfig(v); err != nil {
+	if err := cfg.ValidateConfig(vc); err != nil {
 		return nil, err
 	}
 
-	clientId := v.GetString(VictorOpsApiIdField.FieldName)
-	apiKey := v.GetString(VictorOpsApiKeyField.FieldName)
-
-	cb, err := connector.New(ctx, clientId, apiKey)
+	cb, err := connector.New(ctx, vc.VictoropsApiId, vc.VictoropsApiKey)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err
