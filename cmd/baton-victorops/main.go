@@ -47,7 +47,7 @@ func getConnector(ctx context.Context, vc *cfg.Victorops) (types.ConnectorServer
 		return nil, err
 	}
 
-	cb, err := connector.New(ctx, vc.VictoropsApiId, vc.VictoropsApiKey)
+	cb, err := connector.New(ctx, vc.VictoropsApiId, vc.VictoropsApiKey, vc.BaseUrl)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err

@@ -45,8 +45,8 @@ func (d *Connector) Validate(ctx context.Context) (annotations.Annotations, erro
 }
 
 // New returns a new instance of the connector.
-func New(ctx context.Context, clientId, apiKey string) (*Connector, error) {
-	opsClient, err := client.NewVictorOpsClient(ctx, clientId, apiKey)
+func New(ctx context.Context, clientId, apiKey, baseURL string) (*Connector, error) {
+	opsClient, err := client.NewVictorOpsClient(ctx, clientId, apiKey, baseURL)
 	if err != nil {
 		return nil, err
 	}

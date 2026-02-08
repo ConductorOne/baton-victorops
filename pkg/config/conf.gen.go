@@ -6,6 +6,7 @@ import "reflect"
 type Victorops struct {
 	VictoropsApiId string `mapstructure:"victorops-api-id"`
 	VictoropsApiKey string `mapstructure:"victorops-api-key"`
+	BaseUrl string `mapstructure:"base-url"`
 }
 
 func (c *Victorops) findFieldByTag(tagValue string) (any, bool) {
