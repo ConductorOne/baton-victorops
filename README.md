@@ -1,6 +1,6 @@
 ![Baton Logo](./baton-logo.png)
 
-# `baton-victorops` [![Go Reference](https://pkg.go.dev/badge/github.com/conductorone/baton-victorops.svg)](https://pkg.go.dev/github.com/conductorone/baton-victorops) ![main ci](https://github.com/conductorone/baton-victorops/actions/workflows/main.yaml/badge.svg)
+# `baton-victorops` [![Go Reference](https://pkg.go.dev/badge/github.com/conductorone/baton-victorops.svg)](https://pkg.go.dev/github.com/conductorone/baton-victorops) ![verify](https://github.com/conductorone/baton-victorops/actions/workflows/verify.yaml/badge.svg)
 
 `baton-victorops` is a connector for built using the [Baton SDK](https://github.com/conductorone/baton-sdk).
 
