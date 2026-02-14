@@ -10,6 +10,7 @@ var (
 	BaseURLField = field.StringField(
 		"base-url",
 		field.WithDescription("Override the VictorOps API URL (for testing)"),
+		field.WithHidden(true),
 	)
 )
 
