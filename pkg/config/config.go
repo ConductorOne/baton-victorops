@@ -6,6 +6,15 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/field"
 )
 
+var (
+	BaseURLField = field.StringField(
+		"base-url",
+		field.WithDescription("Override the VictorOps API URL (for testing)"),
+		field.WithHidden(true),
+		field.WithExportTarget(field.ExportTargetCLIOnly),
+	)
+)
+
 var Config = field.NewConfiguration([]field.SchemaField{
 	field.StringField(
 		"victorops-api-id",
@@ -17,6 +26,7 @@ var Config = field.NewConfiguration([]field.SchemaField{
 		field.WithRequired(true),
 		field.WithDescription("The API key for the VictorOps API"),
 	),
+	BaseURLField,
 })
 
 func ValidateConfig(c *Victorops) error {

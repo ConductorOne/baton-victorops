@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	BaseUrl = "https://api.victorops.com"
+	DefaultBaseURL = "https://api.victorops.com"
 
 	UsersEndpoint = "/api-public/v1/user"
 
@@ -30,13 +30,17 @@ type VictorOpsClient struct {
 	baseUrl    *url.URL
 }
 
-func NewVictorOpsClient(ctx context.Context, clientId, apiKey string) (*VictorOpsClient, error) {
+func NewVictorOpsClient(ctx context.Context, clientId, apiKey, baseURL string) (*VictorOpsClient, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {
 		return nil, err
 	}
 
-	baseUrl, err := url.Parse(BaseUrl)
+	if baseURL == "" {
+		baseURL = DefaultBaseURL
+	}
+
+	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +49,7 @@ func NewVictorOpsClient(ctx context.Context, clientId, apiKey string) (*VictorOp
 		httpClient: uhttp.NewBaseHttpClient(httpClient),
 		clientId:   clientId,
 		apiKey:     apiKey,
-		baseUrl:    baseUrl,
+		baseUrl:    parsedURL,
 	}, nil
 }
 
