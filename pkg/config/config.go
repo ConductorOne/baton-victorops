@@ -25,6 +25,7 @@ var Config = field.NewConfiguration([]field.SchemaField{
 		"victorops-api-key",
 		field.WithRequired(true),
 		field.WithDescription("The API key for the VictorOps API"),
+		field.WithIsSecret(true),
 	),
 	BaseURLField,
 })
