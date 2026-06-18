@@ -38,7 +38,3 @@ var Config = field.NewConfiguration(
 	field.WithIconUrl("/static/app-icons/victorops.svg"),
 	field.WithHelpUrl("/docs/baton/victorops"),
 )
-
-func ValidateConfig(c *Victorops) error {
-	return nil
-}
