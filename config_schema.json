@@ -94,7 +94,9 @@
     },
     {
       "name": "victorops-api-id",
+      "displayName": "API ID",
       "description": "The client ID for the VictorOps API",
+      "placeholder": "Enter your VictorOps API ID",
       "isRequired": true,
       "stringField": {
         "rules": {
@@ -104,7 +106,9 @@
     },
     {
       "name": "victorops-api-key",
+      "displayName": "API key",
       "description": "The API key for the VictorOps API",
+      "placeholder": "Enter your VictorOps API key",
       "isRequired": true,
       "isSecret": true,
       "stringField": {
@@ -113,5 +117,8 @@
         }
       }
     }
-  ]
+  ],
+  "displayName": "VictorOps",
+  "helpUrl": "/docs/baton/victorops",
+  "iconUrl": "/static/app-icons/victorops.svg"
 }
