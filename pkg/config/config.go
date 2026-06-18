@@ -32,6 +32,7 @@ var Config = field.NewConfiguration(
 			field.WithPlaceholder("Enter your VictorOps API key"),
 			field.WithIsSecret(true),
 		),
+		BaseURLField,
 	},
 	field.WithConnectorDisplayName("VictorOps"),
 	field.WithIconUrl("/static/app-icons/victorops.svg"),
