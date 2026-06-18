@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -57,10 +55,10 @@ func scheduleResource(onCallInfo *client.OnCallInfo, team *client.Team) (*v2.Res
 	return resource, nil
 }
 
-func (s *scheduleBuilder) List(ctx context.Context, _ *v2.ResourceId, _ *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (s *scheduleBuilder) List(ctx context.Context, _ *v2.ResourceId, _ rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	listOnCallResponse, err := s.client.ListCurrentOnCallTeamsWithUsers(ctx)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("victorops-connector: failed to list schedules: %w", err)
+		return nil, nil, fmt.Errorf("victorops-connector: failed to list schedules: %w", err)
 	}
 
 	var rv []*v2.Resource
@@ -68,17 +66,17 @@ func (s *scheduleBuilder) List(ctx context.Context, _ *v2.ResourceId, _ *paginat
 		for _, onCallInfo := range teamsOnCall.OnCallNow {
 			sr, err := scheduleResource(&onCallInfo, &teamsOnCall.Team)
 			if err != nil {
-				return nil, "", nil, fmt.Errorf("failed to create schedule resource: %w", err)
+				return nil, nil, fmt.Errorf("failed to create schedule resource: %w", err)
 			}
 
 			rv = append(rv, sr)
 		}
 	}
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-func (s *scheduleBuilder) Entitlements(_ context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (s *scheduleBuilder) Entitlements(_ context.Context, resource *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	var rv []*v2.Entitlement
 
 	oncallEntitlementOptions := []ent.EntitlementOption{
@@ -92,16 +90,16 @@ func (s *scheduleBuilder) Entitlements(_ context.Context, resource *v2.Resource,
 		ent.NewAssignmentEntitlement(resource, scheduleOnCall, oncallEntitlementOptions...),
 	)
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-func (s *scheduleBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (s *scheduleBuilder) Grants(ctx context.Context, resource *v2.Resource, opts rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
 	l := ctxzap.Extract(ctx)
 
 	// parse resource profile to get schedule oncall users and grant them the oncall entitlement
 	groupTrait, err := rs.GetGroupTrait(resource)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	onCallUsers, ok := getProfileStringArray(groupTrait.Profile, "schedule_oncall_users")
@@ -126,7 +124,7 @@ func (s *scheduleBuilder) Grants(ctx context.Context, resource *v2.Resource, pTo
 		))
 	}
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
 func newScheduleBuilder(client *client.VictorOpsClient) *scheduleBuilder {

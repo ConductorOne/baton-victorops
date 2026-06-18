@@ -9,9 +9,13 @@ else
 OUTPUT_PATH = ${BUILD_DIR}/baton-victorops
 endif
 
+ifdef BATON_LAMBDA_SUPPORT
+BUILD_TAGS = -tags baton_lambda_support
+endif
+
 .PHONY: build
 build: $(GENERATED_CONF)
-	go build -o ${OUTPUT_PATH} ./cmd/baton-victorops
+	go build ${BUILD_TAGS} -o ${OUTPUT_PATH} ./cmd/baton-victorops
 
 $(GENERATED_CONF): pkg/config/config.go go.mod
 	go generate ./pkg/config
