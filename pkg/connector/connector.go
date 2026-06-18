@@ -60,7 +60,7 @@ func New(ctx context.Context, clientId, apiKey, baseURL string) (*Connector, err
 
 // NewLambdaConnector returns a new ConnectorBuilderV2 for use in Lambda/containerized deployments.
 func NewLambdaConnector(ctx context.Context, ac *cfg.Victorops, _ *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
-	c, err := New(ctx, ac.VictoropsApiId, ac.VictoropsApiKey)
+	c, err := New(ctx, ac.VictoropsApiId, ac.VictoropsApiKey, ac.BaseUrl)
 	if err != nil {
 		return nil, nil, err
 	}
