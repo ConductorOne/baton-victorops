@@ -9,7 +9,6 @@ import (
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 )
@@ -27,24 +26,23 @@ func (o *teamBuilder) ResourceType(ctx context.Context) *v2.ResourceType {
 	return teamResourceType
 }
 
-// List returns all the users from the database as resource objects.
-// Users include a UserTrait because they are the 'shape' of a standard user.
-func (o *teamBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId, pToken *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+// List returns all the teams from the database as resource objects.
+func (o *teamBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId, opts rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	teams, err := o.client.ListTeams(ctx)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	rv := make([]*v2.Resource, len(teams))
 	for i, team := range teams {
 		teamResourceP, err := teamResource(&team)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 		rv[i] = teamResourceP
 	}
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
 func teamResource(team *client.Team) (*v2.Resource, error) {
@@ -69,8 +67,8 @@ func teamResource(team *client.Team) (*v2.Resource, error) {
 	)
 }
 
-// Entitlements always returns an empty slice for users.
-func (o *teamBuilder) Entitlements(_ context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+// Entitlements returns entitlements for teams.
+func (o *teamBuilder) Entitlements(_ context.Context, resource *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	var rv []*v2.Entitlement
 
 	ents := []string{teamMemberEntitlement, teamAdminEntitlement}
@@ -86,23 +84,23 @@ func (o *teamBuilder) Entitlements(_ context.Context, resource *v2.Resource, _ *
 		rv = append(rv, entitlement)
 	}
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-// Grants always returns an empty slice for users since they don't have any entitlements.
-func (o *teamBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+// Grants returns grants for team members.
+func (o *teamBuilder) Grants(ctx context.Context, resource *v2.Resource, opts rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
 	teamId := resource.Id.Resource
 
 	listUsers, err := o.client.ListTeamMembers(ctx, teamId)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	rv := make([]*v2.Grant, len(listUsers))
 	for i, user := range listUsers {
 		userId, err := rs.NewResourceID(userResourceType, user.Username)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		userGrant := grant.NewGrant(resource, teamMemberEntitlement, userId)
@@ -112,13 +110,13 @@ func (o *teamBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken 
 
 	adminUsers, err := o.client.ListTeamAdmins(ctx, teamId)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	for _, user := range adminUsers {
 		userId, err := rs.NewResourceID(userResourceType, user.Username)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		userGrant := grant.NewGrant(resource, teamAdminEntitlement, userId, grant.WithAnnotation(&v2.GrantImmutable{}))
@@ -126,7 +124,7 @@ func (o *teamBuilder) Grants(ctx context.Context, resource *v2.Resource, pToken 
 		rv = append(rv, userGrant)
 	}
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
 func (o *teamBuilder) Grant(ctx context.Context, resource *v2.Resource, entitlement *v2.Entitlement) ([]*v2.Grant, annotations.Annotations, error) {

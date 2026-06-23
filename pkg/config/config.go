@@ -15,21 +15,26 @@ var (
 	)
 )
 
-var Config = field.NewConfiguration([]field.SchemaField{
-	field.StringField(
-		"victorops-api-id",
-		field.WithRequired(true),
-		field.WithDescription("The client ID for the VictorOps API"),
-	),
-	field.StringField(
-		"victorops-api-key",
-		field.WithRequired(true),
-		field.WithDescription("The API key for the VictorOps API"),
-		field.WithIsSecret(true),
-	),
-	BaseURLField,
-})
-
-func ValidateConfig(c *Victorops) error {
-	return nil
-}
+var Config = field.NewConfiguration(
+	[]field.SchemaField{
+		field.StringField(
+			"victorops-api-id",
+			field.WithRequired(true),
+			field.WithDescription("The client ID for the VictorOps API"),
+			field.WithDisplayName("API ID"),
+			field.WithPlaceholder("Enter your VictorOps API ID"),
+		),
+		field.StringField(
+			"victorops-api-key",
+			field.WithRequired(true),
+			field.WithDescription("The API key for the VictorOps API"),
+			field.WithDisplayName("API key"),
+			field.WithPlaceholder("Enter your VictorOps API key"),
+			field.WithIsSecret(true),
+		),
+		BaseURLField,
+	},
+	field.WithConnectorDisplayName("VictorOps"),
+	field.WithIconUrl("/static/app-icons/victorops.svg"),
+	field.WithHelpUrl("/docs/baton/victorops"),
+)
