@@ -153,7 +153,7 @@ func (s *State) GetTeamAdmins(slug string) ([]string, bool) {
 // AddTeamMember appends username to the team member list. Idempotent — adding an already-present
 // member is a no-op and returns alreadyMember=true. Returns teamExists=false if the slug is
 // unknown, userExists=false if the username is unknown.
-func (s *State) AddTeamMember(teamSlug, username string) (alreadyMember, teamExists, userExists bool) {
+func (s *State) AddTeamMember(teamSlug, username string) (bool, bool, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.teams[teamSlug]; !ok {
@@ -171,7 +171,7 @@ func (s *State) AddTeamMember(teamSlug, username string) (alreadyMember, teamExi
 
 // RemoveTeamMember removes username from the team member list. Returns teamExists=false if the
 // slug is unknown. Removing a non-member is a no-op (wasMember=false) but not an error.
-func (s *State) RemoveTeamMember(teamSlug, username string) (teamExists, wasMember bool) {
+func (s *State) RemoveTeamMember(teamSlug, username string) (bool, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.teams[teamSlug]; !ok {

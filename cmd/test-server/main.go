@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"time"
 )
 
 const (
@@ -42,5 +44,13 @@ func main() {
 	mux.HandleFunc("GET /api-public/v1/oncall/current", server.requireAuth(server.handleOnCallCurrent))
 
 	log.Printf("baton-victorops test server listening on %s", listenAddr)
-	log.Fatal(http.ListenAndServe(listenAddr, mux))
+	srv := &http.Server{
+		Addr:              listenAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: 30 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
 }
