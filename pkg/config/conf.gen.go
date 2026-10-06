@@ -6,6 +6,7 @@ import "reflect"
 type Victorops struct {
 	VictoropsApiId string `mapstructure:"victorops-api-id"`
 	VictoropsApiKey string `mapstructure:"victorops-api-key"`
+	RemovalReplacementUser string `mapstructure:"removal-replacement-user"`
 	BaseUrl string `mapstructure:"base-url"`
 }
 

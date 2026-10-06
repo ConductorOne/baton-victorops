@@ -14,6 +14,12 @@ sidebarTitle: "Splunk VictorOps"
 | Teams        | <Icon icon="square-check" iconType="solid"  color="#c937ae"/>   | <Icon icon="square-check" iconType="solid"  color="#c937ae"/>        | 
 | Schedules    | <Icon icon="square-check" iconType="solid"  color="#c937ae"/>   |           |
 
+C1 can add and remove team members. Team admins are synced but cannot be changed from C1.
+
+<Note>
+VictorOps requires someone to take over the on-call duties of a user who is removed from a team. To remove team members using C1, set a **Removal replacement user** when you configure the connector. If it is not set, C1 can still add team members, but removing them will fail.
+</Note>
+
 ## Gather VictorOps credentials 
 
 Configuring the connector requires you to pass in credentials generated in VictorOps. Gather these credentials before you move on. 
@@ -90,7 +96,9 @@ Paste the API ID into the **API ID** field.
 </Step>
 <Step>
 Paste the API key into the **API key** field.
-
+</Step>
+<Step>
+**Optional.** To let C1 remove users from teams, enter a VictorOps username in the **Removal replacement user** field. This user takes over the on-call duties of anyone C1 removes from a team, so choose someone who belongs to the teams you manage with C1.
 </Step>
 <Step>
 Click **Save**.
@@ -169,6 +177,10 @@ stringData:
 
   # Optional: include if you want C1 to provision access using this connector
   BATON_PROVISIONING: true
+
+  # Optional: required to remove users from teams. This VictorOps user takes over
+  # the on-call duties of anyone C1 removes from a team
+  BATON_REMOVAL_REPLACEMENT_USER: <VictorOps username>
 ```
 
 See the connector's README or run `--help` to see all available configuration flags and environment variables.

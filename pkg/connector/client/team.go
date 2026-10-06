@@ -43,7 +43,7 @@ func (c *VictorOpsClient) ListTeamAdmins(ctx context.Context, teamId string) ([]
 
 	var response Response
 
-	endPoint := c.getUrl(fmt.Sprintf(TeamMembersEndpoint, teamId))
+	endPoint := c.getUrl(fmt.Sprintf(TeamAdminsEndpoint, teamId))
 
 	err := c.request(ctx, http.MethodGet, endPoint, &response, nil)
 	if err != nil {
@@ -72,14 +72,24 @@ func (c *VictorOpsClient) AddUserTeam(ctx context.Context, teamId, username stri
 	return nil
 }
 
-func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username string) error {
+// RemoveUserTeam removes username from the team. The API requires a replacement user who takes over
+// the removed user's on-call duties, and answers 422 when the replacement is not valid.
+func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, replacement string) error {
+	type Body struct {
+		Replacement string `json:"replacement"`
+	}
+
+	body := Body{
+		Replacement: replacement,
+	}
+
 	endPoint := c.getUrl(fmt.Sprintf(RemoveTeamMemberEndpoint, teamId, username))
 
-	body := struct {
-	}{}
-
-	err := c.request(ctx, http.MethodDelete, endPoint, nil, body)
+	statusCode, err := c.doRequest(ctx, http.MethodDelete, endPoint, nil, body)
 	if err != nil {
+		if statusCode == http.StatusUnprocessableEntity {
+			return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
+		}
 		return err
 	}
 

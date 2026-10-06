@@ -66,10 +66,6 @@ func (s *Server) handleListTeamMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 // Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team_team_admins
-//
-// NOTE: the connector has a bug — ListTeamAdmins calls TeamMembersEndpoint instead of
-// TeamAdminsEndpoint. The test server implements the correct /admins path per the docs so CI
-// exposes the bug (admins will always come back empty from the connector side).
 func (s *Server) handleListTeamAdmins(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	usernames, ok := s.state.GetTeamAdmins(slug)
@@ -124,6 +120,17 @@ func (s *Server) handleAddTeamMember(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	username := r.PathValue("username")
+	var body struct {
+		Replacement string `json:"replacement"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Replacement == "" {
+		writeError(w, http.StatusBadRequest, "replacement is required")
+		return
+	}
+	if _, ok := s.state.GetUser(body.Replacement); !ok {
+		writeError(w, http.StatusUnprocessableEntity, "replacement team member not found")
+		return
+	}
 	teamExists, _ := s.state.RemoveTeamMember(slug, username)
 	if !teamExists {
 		writeError(w, http.StatusNotFound, "team not found")

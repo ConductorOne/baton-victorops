@@ -13,6 +13,7 @@ Check out [Baton](https://github.com/conductorone/baton) to learn more the proje
   - Go to Integrations -> API key
     - Retrieve the API ID and API Key
     - Readonly api key does not have access to provisioning
+- To revoke team membership, set `--removal-replacement-user` (`BATON_REMOVAL_REPLACEMENT_USER`) to the VictorOps username that takes over the on-call duties of removed users. VictorOps requires a replacement user for every team member removal.
 
 ## brew
 
@@ -44,6 +45,10 @@ baton resources
 
 `baton-victorops` will pull down information about the following resources:
 - Users
+- Teams (members and admins)
+- On-call schedules
+
+Team membership can be granted and revoked. Team admin grants are read-only.
 
 # Contributing, Support and Issues
 
@@ -76,6 +81,7 @@ Flags:
       --log-format string          The output format for logs: json, console ($BATON_LOG_FORMAT) (default "json")
       --log-level string           The log level: debug, info, warn, error ($BATON_LOG_LEVEL) (default "info")
   -p, --provisioning               This must be set in order for provisioning actions to be enabled ($BATON_PROVISIONING)
+      --removal-replacement-user string   VictorOps username that takes over on-call duties of users removed from a team. Required for revoking team membership. ($BATON_REMOVAL_REPLACEMENT_USER)
       --skip-full-sync             This must be set to skip a full sync ($BATON_SKIP_FULL_SYNC)
       --ticketing                  This must be set to enable ticketing support ($BATON_TICKETING)
   -v, --version                    version for baton-victorops

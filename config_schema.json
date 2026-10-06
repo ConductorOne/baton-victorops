@@ -116,6 +116,13 @@
           "isRequired": true
         }
       }
+    },
+    {
+      "name": "removal-replacement-user",
+      "displayName": "Removal replacement user",
+      "description": "VictorOps username that takes over on-call duties of users removed from a team. Required for revoking team membership.",
+      "placeholder": "Enter a VictorOps username",
+      "stringField": {}
     }
   ],
   "displayName": "VictorOps",

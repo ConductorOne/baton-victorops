@@ -14,14 +14,15 @@ import (
 )
 
 type Connector struct {
-	client *client.VictorOpsClient
+	client                 *client.VictorOpsClient
+	removalReplacementUser string
 }
 
 // ResourceSyncers returns a ResourceSyncerV2 for each resource type that should be synced from the upstream service.
 func (d *Connector) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
 	return []connectorbuilder.ResourceSyncerV2{
 		newUserBuilder(d.client),
-		newTeamBuilder(d.client),
+		newTeamBuilder(d.client, d.removalReplacementUser),
 		newScheduleBuilder(d.client),
 	}
 }
@@ -47,20 +48,21 @@ func (d *Connector) Validate(ctx context.Context) (annotations.Annotations, erro
 }
 
 // New returns a new instance of the connector.
-func New(ctx context.Context, clientId, apiKey, baseURL string) (*Connector, error) {
+func New(ctx context.Context, clientId, apiKey, baseURL, removalReplacementUser string) (*Connector, error) {
 	opsClient, err := client.NewVictorOpsClient(ctx, clientId, apiKey, baseURL)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Connector{
-		client: opsClient,
+		client:                 opsClient,
+		removalReplacementUser: removalReplacementUser,
 	}, nil
 }
 
 // NewLambdaConnector returns a new ConnectorBuilderV2 for use in Lambda/containerized deployments.
 func NewLambdaConnector(ctx context.Context, ac *cfg.Victorops, _ *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
-	c, err := New(ctx, ac.VictoropsApiId, ac.VictoropsApiKey, ac.BaseUrl)
+	c, err := New(ctx, ac.VictoropsApiId, ac.VictoropsApiKey, ac.BaseUrl, ac.RemovalReplacementUser)
 	if err != nil {
 		return nil, nil, err
 	}

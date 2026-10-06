@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 
@@ -22,6 +23,8 @@ var (
 	RemoveTeamMemberEndpoint = "/api-public/v1/team/%s/members/%s"
 	OnCallCurrentEndpoint    = "/api-public/v1/oncall/current"
 )
+
+var ErrInvalidReplacement = errors.New("replacement user was not found or is not valid")
 
 type VictorOpsClient struct {
 	httpClient *uhttp.BaseHttpClient
@@ -64,10 +67,19 @@ func (c *VictorOpsClient) request(
 	res interface{},
 	body interface{},
 ) error {
-	var (
-		resp *http.Response
-		err  error
-	)
+	_, err := c.doRequest(ctx, method, urlAddress, res, body)
+	return err
+}
+
+// doRequest behaves like request and also returns the HTTP status code, or 0 if no response was received.
+func (c *VictorOpsClient) doRequest(
+	ctx context.Context,
+	method string,
+	urlAddress *url.URL,
+	res interface{},
+	body interface{},
+) (int, error) {
+	var resp *http.Response
 
 	options := []uhttp.RequestOption{
 		uhttp.WithHeader("X-VO-Api-Id", c.clientId),
@@ -85,7 +97,7 @@ func (c *VictorOpsClient) request(
 		options...,
 	)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	switch method {
@@ -101,9 +113,10 @@ func (c *VictorOpsClient) request(
 		}
 	}
 
-	if err != nil {
-		return err
+	statusCode := 0
+	if resp != nil {
+		statusCode = resp.StatusCode
 	}
 
-	return nil
+	return statusCode, err
 }
