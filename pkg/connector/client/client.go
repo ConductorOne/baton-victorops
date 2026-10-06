@@ -107,7 +107,7 @@ func (c *VictorOpsClient) doRequest(
 			defer resp.Body.Close()
 		}
 	case http.MethodPost, http.MethodPatch, http.MethodDelete:
-		resp, err = c.httpClient.Do(req)
+		resp, err = c.httpClient.Do(req, uhttp.WithErrorResponse(&errorResponse{}))
 		if resp != nil {
 			defer resp.Body.Close()
 		}

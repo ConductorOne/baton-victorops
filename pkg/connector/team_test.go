@@ -300,6 +300,25 @@ func TestTeamRevoke(t *testing.T) {
 	}
 }
 
+func TestTeamRevokeKeepsVendorErrorBody(t *testing.T) {
+	_, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+		"DELETE " + membersPath + "/alice": respond(http.StatusBadRequest, `{"error":"unexpected payload"}`),
+	})
+	team := testTeamResource(t)
+	g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
+
+	_, err := newTeamBuilder(c, "oncall-lead").Revoke(context.Background(), g)
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if errors.Is(err, client.ErrInvalidReplacement) {
+		t.Errorf("400 should not be reported as an invalid replacement: %v", err)
+	}
+	if !strings.Contains(err.Error(), `unexpected payload`) {
+		t.Errorf("expected error to include the raw body, got %v", err)
+	}
+}
+
 func TestTeamRevokePreconditions(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -340,7 +359,10 @@ func TestTeamRevokeInvalidReplacement(t *testing.T) {
 	if !errors.Is(err, client.ErrInvalidReplacement) {
 		t.Errorf("expected ErrInvalidReplacement, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "removal-replacement-user ghost") {
-		t.Errorf("expected error to mention the replacement user, got %v", err)
+	if !strings.Contains(err.Error(), "removal-replacement-user ghost exists in VictorOps and is a member of team "+testTeamSlug) {
+		t.Errorf("expected error to mention the replacement user and team, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "replacement not found") {
+		t.Errorf("expected error to include the vendor message, got %v", err)
 	}
 }
