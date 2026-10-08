@@ -39,7 +39,6 @@ func (o *userBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId,
 }
 
 func userResource(ctx context.Context, user *client.User) (*v2.Resource, error) {
-	status := v2.UserTrait_Status_STATUS_ENABLED
 	profile := map[string]interface{}{
 		"first_name":            user.FirstName,
 		"last_name":             user.LastName,
@@ -50,17 +49,13 @@ func userResource(ctx context.Context, user *client.User) (*v2.Resource, error) 
 		"password_last_updated": user.PasswordLastUpdated,
 	}
 
-	userTraitOptions := rs.WithUserTrait(
-		rs.WithUserProfile(profile),
-		rs.WithStatus(status),
-		rs.WithEmail(user.Email, true),
-	)
-
 	resource, err := rs.NewResource(
 		user.Username,
 		userResourceType,
 		user.Username,
-		userTraitOptions,
+		rs.WithUserTrait(rs.WithEmail(user.Email, true)),
+		rs.WithResourceProfile(profile),
+		rs.WithResourceStatus(v2.Status_RESOURCE_STATUS_ENABLED, ""),
 	)
 
 	if err != nil {

@@ -60,15 +60,12 @@ func teamResource(team *client.Team) (*v2.Resource, error) {
 		"version":         team.Version,
 	}
 
-	teamTraitOptions := rs.WithGroupTrait(
-		rs.WithGroupProfile(profile),
-	)
-
 	return rs.NewResource(
 		team.Name,
 		teamResourceType,
 		team.Slug,
-		teamTraitOptions,
+		rs.WithGroupTrait(),
+		rs.WithResourceProfile(profile),
 	)
 }
 
