@@ -359,7 +359,7 @@ func TestTeamRevokeInvalidReplacement(t *testing.T) {
 	if !errors.Is(err, client.ErrInvalidReplacement) {
 		t.Errorf("expected ErrInvalidReplacement, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "removal-replacement-user ghost exists in VictorOps and is a member of team "+testTeamSlug) {
+	if !strings.Contains(err.Error(), "removal-replacement-user ghost exists in VictorOps") {
 		t.Errorf("expected error to mention the replacement user and team, got %v", err)
 	}
 	if !strings.Contains(err.Error(), "replacement not found") {

@@ -72,8 +72,8 @@ func (c *VictorOpsClient) AddUserTeam(ctx context.Context, teamId, username stri
 	return nil
 }
 
-// RemoveUserTeam removes username from the team. The API requires a replacement user who takes over
-// the removed user's on-call duties, and answers 422 when the replacement is not valid.
+// RemoveUserTeam removes username from the team. The API requires a replacement when the user is on call
+// (rotations or escalation policies), and answers 422 when the replacement is not valid.
 func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, replacement string) error {
 	type Body struct {
 		Replacement string `json:"replacement"`

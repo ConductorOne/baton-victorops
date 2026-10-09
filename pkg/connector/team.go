@@ -175,8 +175,8 @@ func (o *teamBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.
 	err := o.client.RemoveUserTeam(ctx, teamId, username, o.removalReplacementUser)
 	if err != nil {
 		if errors.Is(err, client.ErrInvalidReplacement) {
-			return nil, fmt.Errorf("baton-victorops: failed to remove user %s from team %s, check that removal-replacement-user %s exists in VictorOps and is a member of team %s: %w",
-				username, teamId, o.removalReplacementUser, teamId, err)
+			return nil, fmt.Errorf("baton-victorops: failed to remove user %s from team %s, check that removal-replacement-user %s exists in VictorOps: %w",
+				username, teamId, o.removalReplacementUser, err)
 		}
 		return nil, fmt.Errorf("baton-victorops: failed to remove user %s from team %s: %w", username, teamId, err)
 	}
