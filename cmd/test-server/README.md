@@ -25,9 +25,8 @@ Requests with missing or wrong headers get HTTP 401.
 | `/api-public/v1/team/{slug}/admins` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team_team_admins |
 | `/api-public/v1/oncall/current` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_oncall_current |
 
-> **Known connector bug:** `ListTeamAdmins` calls the `/members` endpoint instead of `/admins`
-> (wrong constant). The test server correctly serves `/admins` per the docs — so admin grants
-> will come back empty from the connector until the bug is fixed.
+`DELETE /api-public/v1/team/{slug}/members/{username}` requires a JSON body `{"replacement": "<username>"}`.
+A missing replacement returns HTTP 400 and an unknown replacement user returns HTTP 422.
 
 ## Seed data
 
@@ -52,6 +51,7 @@ go run ./cmd/test-server/
 ./baton-victorops \
   --victorops-api-id=test-api-id \
   --victorops-api-key=test-api-key \
+  --removal-replacement-user=dave@example.com \
   --base-url=http://localhost:8765
 
 # Inspect the sync output

@@ -2,8 +2,10 @@ package client
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
@@ -22,6 +24,8 @@ var (
 	RemoveTeamMemberEndpoint = "/api-public/v1/team/%s/members/%s"
 	OnCallCurrentEndpoint    = "/api-public/v1/oncall/current"
 )
+
+var ErrInvalidReplacement = errors.New("replacement user was not found or is not valid")
 
 type VictorOpsClient struct {
 	httpClient *uhttp.BaseHttpClient
@@ -57,6 +61,14 @@ func (c *VictorOpsClient) getUrl(endPoint string) *url.URL {
 	return c.baseUrl.JoinPath(endPoint)
 }
 
+// pathSegment escapes s as a single path segment. Dot segments are encoded too, so JoinPath does not resolve them.
+func pathSegment(s string) string {
+	if s == "." || s == ".." {
+		return strings.ReplaceAll(s, ".", "%2E")
+	}
+	return url.PathEscape(s)
+}
+
 func (c *VictorOpsClient) request(
 	ctx context.Context,
 	method string,
@@ -64,10 +76,19 @@ func (c *VictorOpsClient) request(
 	res interface{},
 	body interface{},
 ) error {
-	var (
-		resp *http.Response
-		err  error
-	)
+	_, err := c.doRequest(ctx, method, urlAddress, res, body)
+	return err
+}
+
+// doRequest behaves like request and also returns the HTTP status code, or 0 if no response was received.
+func (c *VictorOpsClient) doRequest(
+	ctx context.Context,
+	method string,
+	urlAddress *url.URL,
+	res interface{},
+	body interface{},
+) (int, error) {
+	var resp *http.Response
 
 	options := []uhttp.RequestOption{
 		uhttp.WithHeader("X-VO-Api-Id", c.clientId),
@@ -85,7 +106,7 @@ func (c *VictorOpsClient) request(
 		options...,
 	)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	switch method {
@@ -95,15 +116,16 @@ func (c *VictorOpsClient) request(
 			defer resp.Body.Close()
 		}
 	case http.MethodPost, http.MethodPatch, http.MethodDelete:
-		resp, err = c.httpClient.Do(req)
+		resp, err = c.httpClient.Do(req, uhttp.WithErrorResponse(&errorResponse{}))
 		if resp != nil {
 			defer resp.Body.Close()
 		}
 	}
 
-	if err != nil {
-		return err
+	statusCode := 0
+	if resp != nil {
+		statusCode = resp.StatusCode
 	}
 
-	return nil
+	return statusCode, err
 }

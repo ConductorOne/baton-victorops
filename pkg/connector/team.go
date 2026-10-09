@@ -2,7 +2,9 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-victorops/pkg/connector/client"
@@ -11,6 +13,8 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -19,7 +23,8 @@ var (
 )
 
 type teamBuilder struct {
-	client *client.VictorOpsClient
+	client                 *client.VictorOpsClient
+	removalReplacementUser string
 }
 
 func (o *teamBuilder) ResourceType(ctx context.Context) *v2.ResourceType {
@@ -30,7 +35,7 @@ func (o *teamBuilder) ResourceType(ctx context.Context) *v2.ResourceType {
 func (o *teamBuilder) List(ctx context.Context, parentResourceID *v2.ResourceId, opts rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	teams, err := o.client.ListTeams(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("baton-victorops: failed to list teams: %w", err)
 	}
 
 	rv := make([]*v2.Resource, len(teams))
@@ -55,15 +60,12 @@ func teamResource(team *client.Team) (*v2.Resource, error) {
 		"version":         team.Version,
 	}
 
-	teamTraitOptions := rs.WithGroupTrait(
-		rs.WithGroupProfile(profile),
-	)
-
 	return rs.NewResource(
 		team.Name,
 		teamResourceType,
 		team.Slug,
-		teamTraitOptions,
+		rs.WithGroupTrait(),
+		rs.WithResourceProfile(profile),
 	)
 }
 
@@ -73,11 +75,16 @@ func (o *teamBuilder) Entitlements(_ context.Context, resource *v2.Resource, _ r
 
 	ents := []string{teamMemberEntitlement, teamAdminEntitlement}
 
+	descriptions := map[string]string{
+		teamMemberEntitlement: fmt.Sprintf("Member of %s team", resource.DisplayName),
+		teamAdminEntitlement:  fmt.Sprintf("Admin of %s team", resource.DisplayName),
+	}
+
 	for _, value := range ents {
 		assigmentOptions := []ent.EntitlementOption{
 			ent.WithGrantableTo(userResourceType),
 			ent.WithDisplayName(fmt.Sprintf("%s team %s", resource.DisplayName, value)),
-			ent.WithDescription(fmt.Sprintf("Member of %s team", resource.DisplayName)),
+			ent.WithDescription(descriptions[value]),
 		}
 
 		entitlement := ent.NewAssignmentEntitlement(resource, value, assigmentOptions...)
@@ -93,7 +100,7 @@ func (o *teamBuilder) Grants(ctx context.Context, resource *v2.Resource, opts rs
 
 	listUsers, err := o.client.ListTeamMembers(ctx, teamId)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("baton-victorops: failed to list members of team %s: %w", teamId, err)
 	}
 
 	rv := make([]*v2.Grant, len(listUsers))
@@ -110,7 +117,7 @@ func (o *teamBuilder) Grants(ctx context.Context, resource *v2.Resource, opts rs
 
 	adminUsers, err := o.client.ListTeamAdmins(ctx, teamId)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("baton-victorops: failed to list admins of team %s: %w", teamId, err)
 	}
 
 	for _, user := range adminUsers {
@@ -127,40 +134,59 @@ func (o *teamBuilder) Grants(ctx context.Context, resource *v2.Resource, opts rs
 	return rv, nil, nil
 }
 
-func (o *teamBuilder) Grant(ctx context.Context, resource *v2.Resource, entitlement *v2.Entitlement) ([]*v2.Grant, annotations.Annotations, error) {
+func (o *teamBuilder) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) ([]*v2.Grant, annotations.Annotations, error) {
 	if entitlement.Slug != teamMemberEntitlement {
-		return nil, nil, fmt.Errorf("entitlement %s is not supported", entitlement.Slug)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "baton-victorops: entitlement %s is not supported", entitlement.Slug)
 	}
 
 	teamId := entitlement.Resource.Id.Resource
-	userId := resource.Id.Resource
+	username := principal.Id.Resource
 
-	err := o.client.AddUserTeam(ctx, teamId, userId)
+	newGrant := grant.NewGrant(entitlement.Resource, entitlement.Slug, principal.Id)
+
+	err := o.client.AddUserTeam(ctx, teamId, username)
 	if err != nil {
-		return nil, nil, err
+		if status.Code(err) == codes.AlreadyExists {
+			return []*v2.Grant{newGrant}, annotations.New(&v2.GrantAlreadyExists{}), nil
+		}
+		return nil, nil, fmt.Errorf("baton-victorops: failed to add user %s to team %s: %w", username, teamId, err)
 	}
 
-	return []*v2.Grant{grant.NewGrant(resource, entitlement.Id, entitlement.Resource.Id)}, nil, nil
+	return []*v2.Grant{newGrant}, nil, nil
 }
 
 func (o *teamBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
 	if grant.Entitlement.Slug != teamMemberEntitlement {
-		return nil, fmt.Errorf("entitlement %s is not supported", grant.Entitlement.Slug)
+		return nil, status.Errorf(codes.InvalidArgument, "baton-victorops: entitlement %s is not supported", grant.Entitlement.Slug)
 	}
 
 	teamId := grant.Entitlement.Resource.Id.Resource
-	userId := grant.Principal.Id.Resource
+	username := grant.Principal.Id.Resource
 
-	err := o.client.RemoveUserTeam(ctx, teamId, userId)
+	if o.removalReplacementUser == "" {
+		return nil, status.Error(codes.FailedPrecondition, "baton-victorops: removal-replacement-user must be configured to revoke team membership")
+	}
+	if strings.EqualFold(o.removalReplacementUser, username) {
+		return nil, status.Errorf(codes.FailedPrecondition,
+			"baton-victorops: cannot remove %s from team %s because it is the configured removal-replacement-user", username, teamId)
+	}
+
+	// A 404 is documented only as team-not-found, so it is not treated as already revoked.
+	err := o.client.RemoveUserTeam(ctx, teamId, username, o.removalReplacementUser)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, client.ErrInvalidReplacement) {
+			return nil, fmt.Errorf("baton-victorops: failed to remove user %s from team %s, check that removal-replacement-user %s exists in VictorOps: %w",
+				username, teamId, o.removalReplacementUser, err)
+		}
+		return nil, fmt.Errorf("baton-victorops: failed to remove user %s from team %s: %w", username, teamId, err)
 	}
 
 	return nil, nil
 }
 
-func newTeamBuilder(client *client.VictorOpsClient) *teamBuilder {
+func newTeamBuilder(client *client.VictorOpsClient, removalReplacementUser string) *teamBuilder {
 	return &teamBuilder{
-		client: client,
+		client:                 client,
+		removalReplacementUser: removalReplacementUser,
 	}
 }

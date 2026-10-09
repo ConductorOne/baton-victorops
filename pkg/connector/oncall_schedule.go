@@ -42,7 +42,8 @@ func scheduleResource(onCallInfo *client.OnCallInfo, team *client.Team) (*v2.Res
 		displayName,
 		scheduleResourceType,
 		scheduleSlug,
-		[]rs.GroupTraitOption{rs.WithGroupProfile(profile)},
+		nil,
+		rs.WithResourceProfile(profile),
 		rs.WithParentResourceID(&v2.ResourceId{
 			ResourceType: teamResourceType.Id,
 			Resource:     team.Slug,
@@ -97,17 +98,14 @@ func (s *scheduleBuilder) Grants(ctx context.Context, resource *v2.Resource, opt
 	l := ctxzap.Extract(ctx)
 
 	// parse resource profile to get schedule oncall users and grant them the oncall entitlement
-	groupTrait, err := rs.GetGroupTrait(resource)
-	if err != nil {
-		return nil, nil, err
-	}
+	profile := resource.GetProfile()
 
-	onCallUsers, ok := getProfileStringArray(groupTrait.Profile, "schedule_oncall_users")
+	onCallUsers, ok := getProfileStringArray(profile, "schedule_oncall_users")
 	if !ok {
 		l.Info("victorops-connector: no on-call users found for schedule resource")
 	}
 
-	teamSlug := groupTrait.Profile.Fields["schedule_team_slug"].GetStringValue()
+	teamSlug := profile.GetFields()["schedule_team_slug"].GetStringValue()
 	if teamSlug == "" {
 		l.Info("victorops-connector: no team found for schedule resource")
 	}

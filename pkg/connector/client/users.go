@@ -6,11 +6,7 @@ import (
 )
 
 func (c *VictorOpsClient) ListUsers(ctx context.Context) ([]User, error) {
-	type Response struct {
-		Users [][]User `json:"users"`
-	}
-
-	var response Response
+	var response listUsersResponse
 
 	endPoint := c.getUrl(UsersEndpoint)
 

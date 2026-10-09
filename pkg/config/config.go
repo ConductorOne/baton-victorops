@@ -32,6 +32,13 @@ var Config = field.NewConfiguration(
 			field.WithPlaceholder("Enter your VictorOps API key"),
 			field.WithIsSecret(true),
 		),
+		field.StringField(
+			"removal-replacement-user",
+			field.WithDescription("VictorOps username used as the default replacement for removed team members who are on call (rotations or escalation policies). " +
+				"Does not need to belong to the team. Required for revoking team membership."),
+			field.WithDisplayName("Removal replacement user"),
+			field.WithPlaceholder("Enter a VictorOps username"),
+		),
 		BaseURLField,
 	},
 	field.WithConnectorDisplayName("VictorOps"),

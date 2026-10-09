@@ -20,13 +20,9 @@ func (c *VictorOpsClient) ListTeams(ctx context.Context) ([]Team, error) {
 }
 
 func (c *VictorOpsClient) ListTeamMembers(ctx context.Context, teamId string) ([]TeamMember, error) {
-	type Response struct {
-		TeamMembers []TeamMember `json:"members"`
-	}
+	var response listTeamMembersResponse
 
-	var response Response
-
-	endPoint := c.getUrl(fmt.Sprintf(TeamMembersEndpoint, teamId))
+	endPoint := c.getUrl(fmt.Sprintf(TeamMembersEndpoint, pathSegment(teamId)))
 
 	err := c.request(ctx, http.MethodGet, endPoint, &response, nil)
 	if err != nil {
@@ -37,13 +33,9 @@ func (c *VictorOpsClient) ListTeamMembers(ctx context.Context, teamId string) ([
 }
 
 func (c *VictorOpsClient) ListTeamAdmins(ctx context.Context, teamId string) ([]TeamMemberAdmin, error) {
-	type Response struct {
-		TeamAdmins []TeamMemberAdmin `json:"teamAdmins"`
-	}
+	var response listTeamAdminsResponse
 
-	var response Response
-
-	endPoint := c.getUrl(fmt.Sprintf(TeamMembersEndpoint, teamId))
+	endPoint := c.getUrl(fmt.Sprintf(TeamAdminsEndpoint, pathSegment(teamId)))
 
 	err := c.request(ctx, http.MethodGet, endPoint, &response, nil)
 	if err != nil {
@@ -54,15 +46,11 @@ func (c *VictorOpsClient) ListTeamAdmins(ctx context.Context, teamId string) ([]
 }
 
 func (c *VictorOpsClient) AddUserTeam(ctx context.Context, teamId, username string) error {
-	type Body struct {
-		Username string `json:"username"`
-	}
-
-	body := Body{
+	body := addTeamMemberBody{
 		Username: username,
 	}
 
-	endPoint := c.getUrl(fmt.Sprintf(AddTeamMemberEndpoint, teamId))
+	endPoint := c.getUrl(fmt.Sprintf(AddTeamMemberEndpoint, pathSegment(teamId)))
 
 	err := c.request(ctx, http.MethodPost, endPoint, nil, body)
 	if err != nil {
@@ -72,14 +60,20 @@ func (c *VictorOpsClient) AddUserTeam(ctx context.Context, teamId, username stri
 	return nil
 }
 
-func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username string) error {
-	endPoint := c.getUrl(fmt.Sprintf(RemoveTeamMemberEndpoint, teamId, username))
+// RemoveUserTeam removes username from the team. The API requires a replacement when the user is on call
+// (rotations or escalation policies), and answers 422 when the replacement is not valid.
+func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, replacement string) error {
+	body := removeTeamMemberBody{
+		Replacement: replacement,
+	}
 
-	body := struct {
-	}{}
+	endPoint := c.getUrl(fmt.Sprintf(RemoveTeamMemberEndpoint, pathSegment(teamId), pathSegment(username)))
 
-	err := c.request(ctx, http.MethodDelete, endPoint, nil, body)
+	statusCode, err := c.doRequest(ctx, http.MethodDelete, endPoint, nil, body)
 	if err != nil {
+		if statusCode == http.StatusUnprocessableEntity {
+			return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
+		}
 		return err
 	}
 

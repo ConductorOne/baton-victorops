@@ -1,5 +1,7 @@
 package client
 
+import "encoding/json"
+
 type User struct {
 	FirstName           string `json:"firstName"`
 	LastName            string `json:"lastName"`
@@ -39,6 +41,26 @@ type TeamMember struct {
 	Verified  bool   `json:"verified"`
 }
 
+type listUsersResponse struct {
+	Users [][]User `json:"users"`
+}
+
+type listTeamMembersResponse struct {
+	TeamMembers []TeamMember `json:"members"`
+}
+
+type listTeamAdminsResponse struct {
+	TeamAdmins []TeamMemberAdmin `json:"teamAdmins"`
+}
+
+type addTeamMemberBody struct {
+	Username string `json:"username"`
+}
+
+type removeTeamMemberBody struct {
+	Replacement string `json:"replacement"`
+}
+
 type TeamsOnCallResponse struct {
 	TeamsOnCall []TeamOnCall `json:"teamsOnCall"`
 }
@@ -64,4 +86,28 @@ type OnCallUser struct {
 
 type OnCallUserInfo struct {
 	Username string `json:"username"`
+}
+
+// errorResponse keeps the vendor's error message, or the raw body when it has no "message" field.
+type errorResponse struct {
+	Msg string
+	raw string
+}
+
+func (e *errorResponse) UnmarshalJSON(data []byte) error {
+	var body struct {
+		Message string `json:"message"`
+	}
+	e.raw = string(data)
+	if err := json.Unmarshal(data, &body); err == nil {
+		e.Msg = body.Message
+	}
+	return nil
+}
+
+func (e *errorResponse) Message() string {
+	if e.Msg != "" {
+		return e.Msg
+	}
+	return e.raw
 }
