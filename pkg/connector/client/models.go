@@ -41,6 +41,26 @@ type TeamMember struct {
 	Verified  bool   `json:"verified"`
 }
 
+type listUsersResponse struct {
+	Users [][]User `json:"users"`
+}
+
+type listTeamMembersResponse struct {
+	TeamMembers []TeamMember `json:"members"`
+}
+
+type listTeamAdminsResponse struct {
+	TeamAdmins []TeamMemberAdmin `json:"teamAdmins"`
+}
+
+type addTeamMemberBody struct {
+	Username string `json:"username"`
+}
+
+type removeTeamMemberBody struct {
+	Replacement string `json:"replacement"`
+}
+
 type TeamsOnCallResponse struct {
 	TeamsOnCall []TeamOnCall `json:"teamsOnCall"`
 }

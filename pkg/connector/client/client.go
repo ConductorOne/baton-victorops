@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
@@ -58,6 +59,14 @@ func NewVictorOpsClient(ctx context.Context, clientId, apiKey, baseURL string) (
 
 func (c *VictorOpsClient) getUrl(endPoint string) *url.URL {
 	return c.baseUrl.JoinPath(endPoint)
+}
+
+// pathSegment escapes s as a single path segment. Dot segments are encoded too, so JoinPath does not resolve them.
+func pathSegment(s string) string {
+	if s == "." || s == ".." {
+		return strings.ReplaceAll(s, ".", "%2E")
+	}
+	return url.PathEscape(s)
 }
 
 func (c *VictorOpsClient) request(

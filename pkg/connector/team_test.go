@@ -39,7 +39,7 @@ func newFakeVictorOps(t *testing.T, handlers map[string]http.HandlerFunc) (*fake
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		f.mu.Lock()
-		f.requests = append(f.requests, recordedRequest{method: r.Method, path: r.URL.Path, body: string(body)})
+		f.requests = append(f.requests, recordedRequest{method: r.Method, path: r.URL.EscapedPath(), body: string(body)})
 		f.mu.Unlock()
 
 		h, ok := f.handlers[r.Method+" "+r.URL.Path]
@@ -240,21 +240,18 @@ func TestTeamGrant(t *testing.T) {
 	}
 }
 
-func TestTeamGrantAlreadyExists(t *testing.T) {
+func TestTeamGrantAlreadyMember(t *testing.T) {
 	_, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
-		"POST " + membersPath: respond(http.StatusConflict, `{"message":"already a member"}`),
+		"POST " + membersPath: respond(http.StatusOK, `{"members":[{"username":"alice"}]}`),
 	})
 	team := testTeamResource(t)
 
-	grants, annos, err := newTeamBuilder(c, "").Grant(context.Background(), testUserResource(t, "alice"), testEntitlement(team, teamMemberEntitlement))
+	grants, _, err := newTeamBuilder(c, "").Grant(context.Background(), testUserResource(t, "alice"), testEntitlement(team, teamMemberEntitlement))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(grants) != 1 {
 		t.Errorf("expected 1 grant, got %d", len(grants))
-	}
-	if !annos.Contains(&v2.GrantAlreadyExists{}) {
-		t.Errorf("expected GrantAlreadyExists annotation, got %v", annos)
 	}
 }
 
@@ -265,11 +262,11 @@ func TestTeamGrantRevokeAdminRejected(t *testing.T) {
 	adminEnt := testEntitlement(team, teamAdminEntitlement)
 	b := newTeamBuilder(c, "replacement")
 
-	if _, _, err := b.Grant(context.Background(), user, adminEnt); err == nil {
-		t.Error("expected Grant on admin entitlement to fail")
+	if _, _, err := b.Grant(context.Background(), user, adminEnt); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument from Grant on admin entitlement, got %v", err)
 	}
-	if _, err := b.Revoke(context.Background(), &v2.Grant{Entitlement: adminEnt, Principal: user}); err == nil {
-		t.Error("expected Revoke on admin entitlement to fail")
+	if _, err := b.Revoke(context.Background(), &v2.Grant{Entitlement: adminEnt, Principal: user}); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("expected InvalidArgument from Revoke on admin entitlement, got %v", err)
 	}
 	if n := len(f.all()); n != 0 {
 		t.Errorf("expected no HTTP calls, got %d", n)
@@ -297,6 +294,41 @@ func TestTeamRevoke(t *testing.T) {
 	}
 	if strings.TrimSpace(reqs[0].body) != `{"replacement":"oncall-lead"}` {
 		t.Errorf("unexpected body %q", reqs[0].body)
+	}
+}
+
+// A 404 is documented only as team-not-found, so Revoke must return it instead of reporting already revoked.
+func TestTeamRevokeNotFound(t *testing.T) {
+	_, c := newFakeVictorOps(t, nil)
+	team := testTeamResource(t)
+	g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
+
+	annos, err := newTeamBuilder(c, "oncall-lead").Revoke(context.Background(), g)
+	if status.Code(err) != codes.NotFound {
+		t.Errorf("expected NotFound, got %v", err)
+	}
+	if annos.Contains(&v2.GrantAlreadyRevoked{}) {
+		t.Error("404 should not be reported as already revoked")
+	}
+}
+
+func TestTeamRevokeEscapesPathSegments(t *testing.T) {
+	for username, want := range map[string]string{
+		"a/b": membersPath + "/a%2Fb",
+		"a%b": membersPath + "/a%25b",
+		"..":  membersPath + "/%2E%2E",
+		"a b": membersPath + "/a%20b",
+	} {
+		f, c := newFakeVictorOps(t, nil)
+		team := testTeamResource(t)
+		g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, username)}
+
+		_, _ = newTeamBuilder(c, "oncall-lead").Revoke(context.Background(), g)
+
+		reqs := f.all()
+		if len(reqs) != 1 || reqs[0].path != want {
+			t.Errorf("username %q: expected one request to %s, got %v", username, want, reqs)
+		}
 	}
 }
 

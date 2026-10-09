@@ -136,7 +136,7 @@ func (o *teamBuilder) Grants(ctx context.Context, resource *v2.Resource, opts rs
 
 func (o *teamBuilder) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) ([]*v2.Grant, annotations.Annotations, error) {
 	if entitlement.Slug != teamMemberEntitlement {
-		return nil, nil, fmt.Errorf("baton-victorops: entitlement %s is not supported", entitlement.Slug)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "baton-victorops: entitlement %s is not supported", entitlement.Slug)
 	}
 
 	teamId := entitlement.Resource.Id.Resource
@@ -157,7 +157,7 @@ func (o *teamBuilder) Grant(ctx context.Context, principal *v2.Resource, entitle
 
 func (o *teamBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
 	if grant.Entitlement.Slug != teamMemberEntitlement {
-		return nil, fmt.Errorf("baton-victorops: entitlement %s is not supported", grant.Entitlement.Slug)
+		return nil, status.Errorf(codes.InvalidArgument, "baton-victorops: entitlement %s is not supported", grant.Entitlement.Slug)
 	}
 
 	teamId := grant.Entitlement.Resource.Id.Resource
