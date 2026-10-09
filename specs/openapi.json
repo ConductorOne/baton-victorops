@@ -1,0 +1,395 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "VictorOps API — baton-victorops connector surface",
+    "description": "This document covers ONLY the VictorOps / Splunk On-Call REST API operations that the baton-victorops connector (pkg/connector/client) actually calls. It is not a full mirror of the vendor's public API. Shapes are derived from pkg/connector/client/*.go (which endpoints and fields the connector depends on) and settled against the vendor's officially published Swagger 2.0 document at https://portal.victorops.com/public/api-docs/victorops-api-v1.yaml (vendor spec version 0.0.3, fetched live 2026-10-01). See the accompanying PR description for a full provenance table and a list of discrepancies found between the connector's implementation and the vendor's documented contract.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.victorops.com",
+      "description": "Default VictorOps API base URL (pkg/connector/client/client.go DefaultBaseURL). Overridable via the connector's hidden `base-url` config field / `--base-url` CLI flag (pkg/config/config.go BaseURLField), which exists for testing against a mock server and is not meant for production use."
+    }
+  ],
+  "security": [
+    {
+      "VOApiId": [],
+      "VOApiKey": []
+    }
+  ],
+  "tags": [
+    { "name": "Users", "description": "VictorOps org users" },
+    { "name": "Teams", "description": "VictorOps teams, membership, and admins" },
+    { "name": "On-call", "description": "Current on-call schedule state" }
+  ],
+  "paths": {
+    "/api-public/v1/user": {
+      "get": {
+        "operationId": "listUsers",
+        "summary": "List users",
+        "description": "Get a list of users for the organization. Client: pkg/connector/client/users.go:8 (ListUsers), called from pkg/connector/users.go. No pagination parameters are sent or supported by this endpoint — the vendor spec and docs confirm this returns the full org user list in one response.\n\nANOMALY (see PR blockers): the connector decodes the `users` field into a Go `[][]User` (array of arrays), while the vendor spec documents `users` as a flat array of user objects (matching ListTeamResponse's sibling shapes). This schema models the vendor-documented flat array; the connector's nested-array Go type appears to be a latent bug and is flagged separately rather than encoded here.",
+        "tags": ["Users"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "A list of users for the organization",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ListUserResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/UserNotFound" },
+          "422": { "description": "You have reached your user limit." },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/api-public/v1/team": {
+      "get": {
+        "operationId": "listTeams",
+        "summary": "List teams",
+        "description": "Get a list of teams for the organization. Client: pkg/connector/client/team.go:9 (ListTeams), called from pkg/connector/team.go. No pagination parameters are sent or supported — the vendor spec documents this as returning the full list in one response, and the connector decodes it directly as a flat array (`[]Team`), matching the vendor's un-wrapped array response.",
+        "tags": ["Teams"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "A list of teams for the organization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Team" }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/TeamNotFound" },
+          "422": { "description": "You have reached your team limit." },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/api-public/v1/team/{team}/members": {
+      "get": {
+        "operationId": "listTeamMembers",
+        "summary": "Retrieve a list of members for a team",
+        "description": "Client: pkg/connector/client/team.go:22 (ListTeamMembers), called from pkg/connector/team.go Grants(). No pagination.\n\nCONNECTOR BUG (see PR blockers): pkg/connector/client/team.go:39 (ListTeamAdmins) also issues a GET request to this exact same path (it uses the `TeamMembersEndpoint` constant instead of the unused `TeamAdminsEndpoint` constant, which points at `/api-public/v1/team/{team}/admins`). ListTeamAdmins then tries to decode a `teamAdmins` field from this response, which this endpoint never returns (only `members`), so ListTeamAdmins always yields an empty slice in production. The vendor-documented `/api-public/v1/team/{team}/admins` endpoint is never actually called by the connector and is therefore NOT included in this spec's scope.",
+        "tags": ["Teams"],
+        "parameters": [
+          { "$ref": "#/components/parameters/TeamSlug" }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of members for the team",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ListTeamMembersResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/TeamNotFound" },
+          "422": { "description": "Team name or email is unavailable, or you have reached your team limit." },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "post": {
+        "operationId": "addTeamMember",
+        "summary": "Add a team member",
+        "description": "Adds a user to a team. Client: pkg/connector/client/team.go:56 (AddUserTeam), called from pkg/connector/team.go Grant() when granting the team `member` entitlement. The connector sends only `username` in the JSON body and discards the response body (passes a nil response target), so the 200 schema below is documented from the vendor spec but not consumed by the connector.",
+        "tags": ["Teams"],
+        "parameters": [
+          { "$ref": "#/components/parameters/TeamSlug" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AddTeamMemberPayload" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Some details about the team that was added (response body is not parsed by the connector)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ListTeamMembersResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/TeamNotFound" },
+          "422": { "description": "Team name or email is unavailable, or you have reached your team limit." },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/api-public/v1/team/{team}/members/{user}": {
+      "delete": {
+        "operationId": "removeTeamMember",
+        "summary": "Remove a team member",
+        "description": "Removes a user from a team. Client: pkg/connector/client/team.go:75 (RemoveUserTeam), called from pkg/connector/team.go Revoke().\n\nDISCREPANCY (see PR blockers): the vendor spec marks the request body's `replacement` field as required (a replacement username to take over any on-call duties held by the removed member). The connector sends an empty JSON object `{}` and never supplies `replacement`. This schema documents the vendor's required contract; it does not reflect what the connector actually transmits.",
+        "tags": ["Teams"],
+        "parameters": [
+          { "$ref": "#/components/parameters/TeamSlug" },
+          {
+            "name": "user",
+            "in": "path",
+            "required": true,
+            "description": "The team member username",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Per the vendor spec this body is required with a required `replacement` field. The connector itself sends `{}` (see description above).",
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RemoveTeamMemberPayload" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Team member was removed" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/TeamNotFound" },
+          "422": { "description": "There was a problem with the delete such as the replacement team member was not found." },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/api-public/v1/oncall/current": {
+      "get": {
+        "operationId": "getCurrentOnCall",
+        "summary": "Get an organization's on-call users",
+        "description": "Get all on-call users/teams for the organization. Client: pkg/connector/client/team.go:89 (ListCurrentOnCallTeamsWithUsers), called from pkg/connector/oncall_schedule.go List().\n\nNOTE: the connector decodes the nested `team` object using its full `Team` struct (same type used by GET /api-public/v1/team), but the vendor spec documents this endpoint's nested team object (`OnCallTeamResource`) as containing only `name` and `slug`. The connector only reads `team.Slug` from this response in practice (see pkg/connector/oncall_schedule.go), so the extra fields being absent here does not break the connector, but the other `Team` fields will always be empty when populated from this endpoint. This schema models the vendor-documented minimal shape.",
+        "tags": ["On-call"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All users and escalation policies currently on call",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GetCurrentOnCallResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "VOApiId": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-VO-Api-Id",
+        "description": "VictorOps API ID. Set via BATON_VICTOROPS_API_ID / --victorops-api-id. Both this and VOApiKey are required on every request (pkg/connector/client/client.go request())."
+      },
+      "VOApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-VO-Api-Key",
+        "description": "VictorOps API key. Set via BATON_VICTOROPS_API_KEY / --victorops-api-key. A read-only key cannot perform the provisioning writes (addTeamMember / removeTeamMember) per the connector README."
+      }
+    },
+    "parameters": {
+      "TeamSlug": {
+        "name": "team",
+        "in": "path",
+        "required": true,
+        "description": "The VictorOps team slug",
+        "schema": { "type": "string" }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Problem with the request arguments. The response payload may include an error message."
+      },
+      "Unauthorized": {
+        "description": "Authentication parameters missing"
+      },
+      "Forbidden": {
+        "description": "Authentication failed or rate-limit reached"
+      },
+      "UserNotFound": {
+        "description": "User not found"
+      },
+      "TeamNotFound": {
+        "description": "Team not found"
+      },
+      "InternalServerError": {
+        "description": "Internal Server Error"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "description": "Vendor: V1User. Source fields: pkg/connector/client/models.go User struct.",
+        "properties": {
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "username": { "type": "string", "description": "Immutable; used as the connector's resource ID / join key for team membership and on-call grants." },
+          "email": { "type": "string" },
+          "createdAt": { "type": "string", "description": "ISO 8601 timestamp per vendor docs; typed as a plain string, format not documented by the vendor." },
+          "passwordLastUpdated": { "type": "string" },
+          "verified": { "type": "boolean", "description": "Whether or not this user has set their password (per vendor docs, will always be false)." },
+          "_selfUrl": { "type": "string" }
+        }
+      },
+      "ListUserResponse": {
+        "type": "object",
+        "description": "Vendor: ListUserResponse.",
+        "properties": {
+          "_selfUrl": { "type": "string" },
+          "users": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/User" }
+          }
+        }
+      },
+      "Team": {
+        "type": "object",
+        "description": "Vendor: TeamDetail. Source fields: pkg/connector/client/models.go Team struct.",
+        "properties": {
+          "_selfUrl": { "type": "string" },
+          "_membersUrl": { "type": "string" },
+          "_policiesUrl": { "type": "string" },
+          "_adminsUrl": { "type": "string" },
+          "name": { "type": "string" },
+          "slug": { "type": "string", "description": "Used by the connector as the team resource ID." },
+          "memberCount": { "type": "integer" },
+          "version": { "type": "integer" },
+          "isDefaultTeam": { "type": "boolean" },
+          "description": {
+            "type": "string",
+            "description": "Read by the connector (team.go profile field) but NOT present in the vendor's published TeamDetail schema — unproven/client-code-only field, see PR blockers."
+          }
+        }
+      },
+      "TeamMember": {
+        "type": "object",
+        "description": "Vendor: TeamMember.",
+        "properties": {
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "username": { "type": "string" },
+          "verified": {
+            "type": "boolean",
+            "description": "Vendor spec types this field as `string` with description 'will always be false', which is inconsistent with its own sibling User.verified (documented as boolean) and with the connector's Go type (bool). Modeled here as boolean; flagged as a vendor-doc inconsistency in the PR, not guessed."
+          },
+          "version": { "type": "integer" }
+        }
+      },
+      "ListTeamMembersResponse": {
+        "type": "object",
+        "description": "Vendor: ListTeamMembersResponse.",
+        "properties": {
+          "_selfUrl": { "type": "string" },
+          "_teamUrl": { "type": "string" },
+          "members": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TeamMember" }
+          }
+        }
+      },
+      "AddTeamMemberPayload": {
+        "type": "object",
+        "description": "Vendor: AddTeamMemberPayload. Matches client.go team.go:57 Body{Username} exactly.",
+        "required": ["username"],
+        "properties": {
+          "username": { "type": "string" }
+        }
+      },
+      "RemoveTeamMemberPayload": {
+        "type": "object",
+        "description": "Vendor: RemoveTeamMemberPayload. NOTE: the connector sends `{}` and never populates `replacement` — see the operation description and PR blockers.",
+        "required": ["replacement"],
+        "properties": {
+          "replacement": {
+            "type": "string",
+            "description": "Username of the team member who should take over any on-call duties held by the removed member."
+          }
+        }
+      },
+      "OnCallTeamRef": {
+        "type": "object",
+        "description": "Vendor: OnCallTeamResource — the minimal team shape actually returned inside the on-call response. The connector decodes this into its full `Team` Go struct, so fields other than `name`/`slug` will always be empty when sourced from this endpoint.",
+        "properties": {
+          "name": { "type": "string" },
+          "slug": { "type": "string" }
+        }
+      },
+      "OnCallEscalationPolicyRef": {
+        "type": "object",
+        "description": "Vendor: OnCallEscalationPolicyResource.",
+        "properties": {
+          "name": { "type": "string" },
+          "slug": { "type": "string" }
+        }
+      },
+      "OnCallUserRef": {
+        "type": "object",
+        "description": "Vendor: OnCallUsersResource.",
+        "properties": {
+          "onCallUser": {
+            "type": "object",
+            "properties": {
+              "username": { "type": "string" }
+            }
+          }
+        }
+      },
+      "OnCallNow": {
+        "type": "object",
+        "description": "Vendor: OnCallNowResource.",
+        "properties": {
+          "escalationPolicy": { "$ref": "#/components/schemas/OnCallEscalationPolicyRef" },
+          "users": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/OnCallUserRef" }
+          }
+        }
+      },
+      "TeamOnCall": {
+        "type": "object",
+        "description": "Vendor: OnCallTeamsResource.",
+        "properties": {
+          "team": { "$ref": "#/components/schemas/OnCallTeamRef" },
+          "onCallNow": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/OnCallNow" }
+          }
+        }
+      },
+      "GetCurrentOnCallResponse": {
+        "type": "object",
+        "description": "Vendor: inline 200 schema for GET /api-public/v1/oncall/current.",
+        "properties": {
+          "teamsOnCall": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TeamOnCall" }
+          }
+        }
+      }
+    }
+  }
+}
