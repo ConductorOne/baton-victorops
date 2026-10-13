@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 )
 
@@ -22,4 +23,19 @@ func (c *VictorOpsClient) ListUsers(ctx context.Context) ([]User, error) {
 	}
 
 	return userResponse, nil
+}
+
+// UserExists reports whether username exists. The API answers 404 for an unknown user.
+func (c *VictorOpsClient) UserExists(ctx context.Context, username string) (bool, error) {
+	endPoint := c.getUrl(fmt.Sprintf(UserEndpoint, pathSegment(username)))
+
+	statusCode, err := c.doRequest(ctx, http.MethodGet, endPoint, nil, nil)
+	if err != nil {
+		if statusCode == http.StatusNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
 }

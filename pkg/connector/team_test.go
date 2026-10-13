@@ -391,10 +391,65 @@ func TestTeamRevokeInvalidReplacement(t *testing.T) {
 	if !errors.Is(err, client.ErrInvalidReplacement) {
 		t.Errorf("expected ErrInvalidReplacement, got %v", err)
 	}
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Errorf("expected FailedPrecondition, got %v", status.Code(err))
+	}
 	if !strings.Contains(err.Error(), "removal-replacement-user ghost exists in VictorOps") {
 		t.Errorf("expected error to mention the replacement user and team, got %v", err)
 	}
 	if !strings.Contains(err.Error(), "replacement not found") {
 		t.Errorf("expected error to include the vendor message, got %v", err)
+	}
+}
+
+// The live API answers 500 for an unknown replacement, so Revoke checks whether the replacement exists.
+func TestTeamRevokeServerErrorUnknownReplacement(t *testing.T) {
+	f, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+		"DELETE " + membersPath + "/alice": respond(http.StatusInternalServerError, `{"message":"internal error"}`),
+	})
+	team := testTeamResource(t)
+	g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
+
+	_, err := newTeamBuilder(c, "ghost").Revoke(context.Background(), g)
+	if !errors.Is(err, client.ErrInvalidReplacement) {
+		t.Errorf("expected ErrInvalidReplacement, got %v", err)
+	}
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Errorf("expected FailedPrecondition, got %v", status.Code(err))
+	}
+	if err == nil || !strings.Contains(err.Error(), "removal-replacement-user ghost exists in VictorOps") {
+		t.Errorf("expected error to name the replacement user, got %v", err)
+	}
+	if n := f.count(http.MethodGet, "/api-public/v1/user/ghost"); n != 1 {
+		t.Errorf("expected 1 replacement lookup, got %d", n)
+	}
+}
+
+func TestTeamRevokeServerErrorStaysRetryable(t *testing.T) {
+	tests := []struct {
+		name   string
+		lookup http.HandlerFunc
+	}{
+		{name: "replacement exists", lookup: respond(http.StatusOK, `{"username":"oncall-lead"}`)},
+		{name: "lookup fails", lookup: respond(http.StatusForbidden, `{"message":"forbidden"}`)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+				"DELETE " + membersPath + "/alice":    respond(http.StatusInternalServerError, `{"message":"internal error"}`),
+				"GET /api-public/v1/user/oncall-lead": tt.lookup,
+			})
+			team := testTeamResource(t)
+			g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
+
+			_, err := newTeamBuilder(c, "oncall-lead").Revoke(context.Background(), g)
+			if errors.Is(err, client.ErrInvalidReplacement) {
+				t.Errorf("500 should not be reported as an invalid replacement: %v", err)
+			}
+			if status.Code(err) != codes.Unavailable {
+				t.Errorf("expected Unavailable, got %v", err)
+			}
+		})
 	}
 }

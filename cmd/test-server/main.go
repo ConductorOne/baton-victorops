@@ -25,6 +25,9 @@ func main() {
 	// Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_user
 	mux.HandleFunc("GET /api-public/v1/user", server.requireAuth(server.handleListUsers))
 
+	// Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_user_user
+	mux.HandleFunc("GET /api-public/v1/user/{username}", server.requireAuth(server.handleGetUser))
+
 	// Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team
 	mux.HandleFunc("GET /api-public/v1/team", server.requireAuth(server.handleListTeams))
 

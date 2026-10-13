@@ -18,6 +18,7 @@ Requests with missing or wrong headers get HTTP 401.
 | Path | Method | Doc URL |
 |---|---|---|
 | `/api-public/v1/user` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_user |
+| `/api-public/v1/user/{username}` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_user_user |
 | `/api-public/v1/team` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team |
 | `/api-public/v1/team/{slug}/members` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team_team_members |
 | `/api-public/v1/team/{slug}/members` | POST | https://portal.victorops.com/public/api-doc.html#!/API_Public/post_api_public_v1_team_team_members |
@@ -26,7 +27,7 @@ Requests with missing or wrong headers get HTTP 401.
 | `/api-public/v1/oncall/current` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_oncall_current |
 
 `DELETE /api-public/v1/team/{slug}/members/{username}` requires a JSON body `{"replacement": "<username>"}`.
-A missing replacement returns HTTP 400 and an unknown replacement user returns HTTP 422.
+A missing replacement returns HTTP 400. An unknown replacement user returns HTTP 500, matching the live API (the docs say 422).
 
 ## Seed data
 

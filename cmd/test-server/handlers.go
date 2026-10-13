@@ -36,6 +36,16 @@ func (s *Server) handleListUsers(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]any{"users": []any{users}})
 }
 
+// Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_user_user
+func (s *Server) handleGetUser(w http.ResponseWriter, r *http.Request) {
+	u, ok := s.state.GetUser(r.PathValue("username"))
+	if !ok {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	writeJSON(w, u)
+}
+
 // Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team
 func (s *Server) handleListTeams(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, s.state.ListTeams())
@@ -128,7 +138,8 @@ func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if _, ok := s.state.GetUser(body.Replacement); !ok {
-		writeError(w, http.StatusUnprocessableEntity, "replacement team member not found")
+		// The live API answers 500 for an unknown replacement, not the documented 422.
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	teamExists, _ := s.state.RemoveTeamMember(slug, username)

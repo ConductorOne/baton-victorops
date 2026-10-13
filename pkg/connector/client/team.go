@@ -61,7 +61,8 @@ func (c *VictorOpsClient) AddUserTeam(ctx context.Context, teamId, username stri
 }
 
 // RemoveUserTeam removes username from the team. The API requires a replacement when the user is on call
-// (rotations or escalation policies), and answers 422 when the replacement is not valid.
+// (rotations or escalation policies). An invalid replacement is documented as 422, but the live API answers 500,
+// so a 500 is reported as an invalid replacement only when the replacement user does not exist.
 func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, replacement string) error {
 	body := removeTeamMemberBody{
 		Replacement: replacement,
@@ -71,8 +72,13 @@ func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, 
 
 	statusCode, err := c.doRequest(ctx, http.MethodDelete, endPoint, nil, body)
 	if err != nil {
-		if statusCode == http.StatusUnprocessableEntity {
+		switch statusCode {
+		case http.StatusUnprocessableEntity:
 			return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
+		case http.StatusInternalServerError:
+			if exists, lookupErr := c.UserExists(ctx, replacement); lookupErr == nil && !exists {
+				return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
+			}
 		}
 		return err
 	}

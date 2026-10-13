@@ -13,6 +13,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -175,8 +176,10 @@ func (o *teamBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.
 	err := o.client.RemoveUserTeam(ctx, teamId, username, o.removalReplacementUser)
 	if err != nil {
 		if errors.Is(err, client.ErrInvalidReplacement) {
-			return nil, fmt.Errorf("baton-victorops: failed to remove user %s from team %s, check that removal-replacement-user %s exists in VictorOps: %w",
-				username, teamId, o.removalReplacementUser, err)
+			// FailedPrecondition so the error is not retried as the vendor's 5xx.
+			return nil, uhttp.WrapErrors(codes.FailedPrecondition,
+				fmt.Sprintf("baton-victorops: failed to remove user %s from team %s, check that removal-replacement-user %s exists in VictorOps",
+					username, teamId, o.removalReplacementUser), err)
 		}
 		return nil, fmt.Errorf("baton-victorops: failed to remove user %s from team %s: %w", username, teamId, err)
 	}
