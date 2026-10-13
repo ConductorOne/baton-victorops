@@ -35,7 +35,7 @@ var Config = field.NewConfiguration(
 		field.StringField(
 			"removal-replacement-user",
 			field.WithDescription("VictorOps username used as the default replacement for removed team members who are on call (rotations or escalation policies). " +
-				"Does not need to belong to the team. Required for revoking team membership."),
+				"Does not need to belong to the team. Only needed to revoke team membership from members who are on call."),
 			field.WithDisplayName("Removal replacement user"),
 			field.WithPlaceholder("Enter a VictorOps username"),
 		),

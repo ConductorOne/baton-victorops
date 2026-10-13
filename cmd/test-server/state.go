@@ -6,7 +6,7 @@ import (
 )
 
 // User mirrors the shape from
-// https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_user
+// https://portal.victorops.com/public/api-docs.html#!/Users/get_api_public_v1_user
 type User struct {
 	FirstName           string `json:"firstName"`
 	LastName            string `json:"lastName"`
@@ -19,7 +19,7 @@ type User struct {
 }
 
 // Team mirrors the shape from
-// https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team
+// https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team
 type Team struct {
 	SelfUrl       string `json:"_selfUrl,omitempty"`
 	MembersUrl    string `json:"_membersUrl,omitempty"`
@@ -34,7 +34,7 @@ type Team struct {
 }
 
 // TeamMember mirrors the shape from
-// https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team_team_members
+// https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team_team_members
 type TeamMember struct {
 	Username  string `json:"username"`
 	FirstName string `json:"firstName"`
@@ -44,7 +44,7 @@ type TeamMember struct {
 }
 
 // TeamMemberAdmin mirrors the shape from
-// https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team_team_admins
+// https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team_team_admins
 type TeamMemberAdmin struct {
 	Username  string `json:"username"`
 	FirstName string `json:"firstName"`
@@ -53,7 +53,7 @@ type TeamMemberAdmin struct {
 }
 
 // Policy, OnCallUserInfo, OnCallUser, OnCallInfo, TeamOnCall mirror the shape from
-// https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_oncall_current
+// https://portal.victorops.com/public/api-docs.html#!/On45call/get_api_public_v1_oncall_current
 type Policy struct {
 	Name string `json:"name"`
 	Slug string `json:"slug"`
@@ -77,23 +77,41 @@ type TeamOnCall struct {
 	OnCallNow []OnCallInfo `json:"onCallNow"`
 }
 
+// Rotation, RotationShift, ShiftMember mirror the shape from
+// https://portal.victorops.com/public/api-docs.html#!/Rotations/get_api_public_v2_team_team_rotations
+type ShiftMember struct {
+	Username string `json:"username"`
+}
+
+type RotationShift struct {
+	Label        string        `json:"label"`
+	ShiftMembers []ShiftMember `json:"shiftMembers"`
+}
+
+type Rotation struct {
+	Label  string          `json:"label"`
+	Shifts []RotationShift `json:"shifts"`
+}
+
 type State struct {
 	mu          sync.Mutex
-	users       map[string]*User    // username → User
-	userList    []*User             // insertion-ordered for deterministic list responses
-	teams       map[string]*Team    // slug → Team
-	teamList    []*Team             // insertion-ordered
-	members     map[string][]string // teamSlug → []username
-	admins      map[string][]string // teamSlug → []username (immutable after seed)
-	teamsOnCall []TeamOnCall        // seeded on-call state
+	users       map[string]*User      // username → User
+	userList    []*User               // insertion-ordered for deterministic list responses
+	teams       map[string]*Team      // slug → Team
+	teamList    []*Team               // insertion-ordered
+	members     map[string][]string   // teamSlug → []username
+	admins      map[string][]string   // teamSlug → []username (immutable after seed)
+	teamsOnCall []TeamOnCall          // seeded on-call state
+	rotations   map[string][]Rotation // teamSlug → rotations
 }
 
 func NewState() *State {
 	s := &State{
-		users:   make(map[string]*User),
-		teams:   make(map[string]*Team),
-		members: make(map[string][]string),
-		admins:  make(map[string][]string),
+		users:     make(map[string]*User),
+		teams:     make(map[string]*Team),
+		members:   make(map[string][]string),
+		admins:    make(map[string][]string),
+		rotations: make(map[string][]Rotation),
 	}
 	seed(s)
 	return s
@@ -182,6 +200,31 @@ func (s *State) RemoveTeamMember(teamSlug, username string) (bool, bool) {
 	}
 	s.members[teamSlug] = slices.DeleteFunc(s.members[teamSlug], func(u string) bool { return u == username })
 	return true, true
+}
+
+func (s *State) GetTeamRotations(slug string) ([]Rotation, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.teams[slug]; !ok {
+		return nil, false
+	}
+	return slices.Clone(s.rotations[slug]), true
+}
+
+// IsInTeamRotation reports whether username is a shift member of any of the team's rotations.
+func (s *State) IsInTeamRotation(slug, username string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, rotation := range s.rotations[slug] {
+		for _, shift := range rotation.Shifts {
+			for _, member := range shift.ShiftMembers {
+				if member.Username == username {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (s *State) GetTeamsOnCall() []TeamOnCall {

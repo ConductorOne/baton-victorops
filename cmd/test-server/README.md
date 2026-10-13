@@ -17,17 +17,19 @@ Requests with missing or wrong headers get HTTP 401.
 
 | Path | Method | Doc URL |
 |---|---|---|
-| `/api-public/v1/user` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_user |
-| `/api-public/v1/user/{username}` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_user_user |
-| `/api-public/v1/team` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team |
-| `/api-public/v1/team/{slug}/members` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team_team_members |
-| `/api-public/v1/team/{slug}/members` | POST | https://portal.victorops.com/public/api-doc.html#!/API_Public/post_api_public_v1_team_team_members |
-| `/api-public/v1/team/{slug}/members/{username}` | DELETE | https://portal.victorops.com/public/api-doc.html#!/API_Public/delete_api_public_v1_team_team_members_user |
-| `/api-public/v1/team/{slug}/admins` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team_team_admins |
-| `/api-public/v1/oncall/current` | GET | https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_oncall_current |
+| `/api-public/v1/user` | GET | https://portal.victorops.com/public/api-docs.html#!/Users/get_api_public_v1_user |
+| `/api-public/v1/user/{username}` | GET | https://portal.victorops.com/public/api-docs.html#!/Users/get_api_public_v1_user_user |
+| `/api-public/v1/team` | GET | https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team |
+| `/api-public/v1/team/{slug}/members` | GET | https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team_team_members |
+| `/api-public/v1/team/{slug}/members` | POST | https://portal.victorops.com/public/api-docs.html#!/Teams/post_api_public_v1_team_team_members |
+| `/api-public/v1/team/{slug}/members/{username}` | DELETE | https://portal.victorops.com/public/api-docs.html#!/Teams/delete_api_public_v1_team_team_members_user |
+| `/api-public/v1/team/{slug}/admins` | GET | https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team_team_admins |
+| `/api-public/v2/team/{slug}/rotations` | GET | https://portal.victorops.com/public/api-docs.html#!/Rotations/get_api_public_v2_team_team_rotations |
+| `/api-public/v1/oncall/current` | GET | https://portal.victorops.com/public/api-docs.html#!/On45call/get_api_public_v1_oncall_current |
 
-`DELETE /api-public/v1/team/{slug}/members/{username}` requires a JSON body `{"replacement": "<username>"}`.
-A missing replacement returns HTTP 400. An unknown replacement user returns HTTP 500, matching the live API (the docs say 422).
+`DELETE /api-public/v1/team/{slug}/members/{username}` takes an optional JSON body `{"replacement": "<username>"}`.
+Matching the live API, it returns HTTP 500 (the docs say 422) for an empty or unknown replacement, and for a member
+in one of the team's rotations removed without a replacement. A member who is in no rotation is removed with `{}`.
 
 ## Seed data
 
@@ -39,6 +41,7 @@ See `seeds.go` for the canonical list. Summary:
 | Teams | 3 | team-alpha, team-beta, team-ops |
 | Team members | 5 memberships | bob is in team-alpha and team-beta (overlap) |
 | Team admins | 3 | one admin per team (immutable entitlement) |
+| Rotations | 2 | alice in a team-alpha rotation, bob in a team-beta rotation |
 | On-call schedules | 2 | team-alpha primary (alice), team-beta secondary (bob) |
 | On-call — empty | 1 | team-ops has no current on-call (exercises empty OnCallNow path) |
 

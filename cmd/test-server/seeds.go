@@ -110,6 +110,15 @@ func seed(s *State) {
 	s.admins["team-beta"] = []string{"bob@example.com"}
 	s.admins["team-ops"] = []string{"eve@example.com"}
 
+	// Rotations — alice is in a team-alpha rotation, so removing her needs a replacement;
+	// bob is in a team-beta rotation only, so he can be removed from team-alpha without one.
+	s.rotations["team-alpha"] = []Rotation{
+		{Label: "Primary", Shifts: []RotationShift{{Label: "Weekly", ShiftMembers: []ShiftMember{{Username: "alice@example.com"}}}}},
+	}
+	s.rotations["team-beta"] = []Rotation{
+		{Label: "Secondary", Shifts: []RotationShift{{Label: "Weekly", ShiftMembers: []ShiftMember{{Username: "bob@example.com"}}}}},
+	}
+
 	// On-call schedules — alice on-call for team-alpha, bob for team-beta;
 	// team-ops has an empty OnCallNow to exercise the no-schedule path.
 	s.teamsOnCall = []TeamOnCall{

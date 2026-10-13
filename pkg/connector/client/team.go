@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
+
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 )
 
 func (c *VictorOpsClient) ListTeams(ctx context.Context) ([]Team, error) {
@@ -60,9 +63,9 @@ func (c *VictorOpsClient) AddUserTeam(ctx context.Context, teamId, username stri
 	return nil
 }
 
-// RemoveUserTeam removes username from the team. The API requires a replacement when the user is on call
-// (rotations or escalation policies). An invalid replacement is documented as 422, but the live API answers 500,
-// so a 500 is reported as an invalid replacement only when the replacement user does not exist.
+// RemoveUserTeam removes username from the team. An empty replacement sends no replacement, which the API accepts
+// unless the user is on call. The live API answers 500 both for a missing replacement and for an invalid one
+// (documented as 422), so a 500 is attributed to the replacement only after a lookup confirms it.
 func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, replacement string) error {
 	body := removeTeamMemberBody{
 		Replacement: replacement,
@@ -76,6 +79,12 @@ func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, 
 		case http.StatusUnprocessableEntity:
 			return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
 		case http.StatusInternalServerError:
+			if replacement == "" {
+				if inRotation, lookupErr := c.IsInTeamRotation(ctx, teamId, username); lookupErr == nil && inRotation {
+					return fmt.Errorf("%w: %w", ErrReplacementRequired, err)
+				}
+				return err
+			}
 			if exists, lookupErr := c.UserExists(ctx, replacement); lookupErr == nil && !exists {
 				return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
 			}
@@ -84,6 +93,30 @@ func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, 
 	}
 
 	return nil
+}
+
+// IsInTeamRotation reports whether username is a shift member of any of the team's rotations.
+func (c *VictorOpsClient) IsInTeamRotation(ctx context.Context, teamId, username string) (bool, error) {
+	var response listTeamRotationsResponse
+
+	endPoint := c.getUrl(fmt.Sprintf(TeamRotationsEndpoint, pathSegment(teamId)))
+
+	_, err := c.doRequest(ctx, http.MethodGet, endPoint, &response, nil, uhttp.WithNoCache())
+	if err != nil {
+		return false, err
+	}
+
+	for _, rotation := range response.Rotations {
+		for _, shift := range rotation.Shifts {
+			for _, member := range shift.ShiftMembers {
+				if strings.EqualFold(member.Username, username) {
+					return true, nil
+				}
+			}
+		}
+	}
+
+	return false, nil
 }
 
 func (c *VictorOpsClient) ListCurrentOnCallTeamsWithUsers(ctx context.Context) (*TeamsOnCallResponse, error) {

@@ -21,12 +21,17 @@ var (
 	TeamMembersEndpoint = "/api-public/v1/team/%s/members"
 	TeamAdminsEndpoint  = "/api-public/v1/team/%s/admins"
 
+	TeamRotationsEndpoint = "/api-public/v2/team/%s/rotations"
+
 	AddTeamMemberEndpoint    = "/api-public/v1/team/%s/members"
 	RemoveTeamMemberEndpoint = "/api-public/v1/team/%s/members/%s"
 	OnCallCurrentEndpoint    = "/api-public/v1/oncall/current"
 )
 
-var ErrInvalidReplacement = errors.New("replacement user was not found or is not valid")
+var (
+	ErrInvalidReplacement  = errors.New("replacement user was not found or is not valid")
+	ErrReplacementRequired = errors.New("a replacement user is required because the user is in a team rotation")
+)
 
 type VictorOpsClient struct {
 	httpClient *uhttp.BaseHttpClient
@@ -88,6 +93,7 @@ func (c *VictorOpsClient) doRequest(
 	urlAddress *url.URL,
 	res interface{},
 	body interface{},
+	reqOptions ...uhttp.RequestOption,
 ) (int, error) {
 	var resp *http.Response
 
@@ -95,6 +101,7 @@ func (c *VictorOpsClient) doRequest(
 		uhttp.WithHeader("X-VO-Api-Id", c.clientId),
 		uhttp.WithHeader("X-VO-Api-Key", c.apiKey),
 	}
+	options = append(options, reqOptions...)
 
 	if body != nil {
 		options = append(options, uhttp.WithJSONBody(body))

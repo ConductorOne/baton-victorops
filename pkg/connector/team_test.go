@@ -120,8 +120,9 @@ func testEntitlement(team *v2.Resource, slug string) *v2.Entitlement {
 }
 
 const (
-	membersPath = "/api-public/v1/team/" + testTeamSlug + "/members"
-	adminsPath  = "/api-public/v1/team/" + testTeamSlug + "/admins"
+	membersPath   = "/api-public/v1/team/" + testTeamSlug + "/members"
+	adminsPath    = "/api-public/v1/team/" + testTeamSlug + "/admins"
+	rotationsPath = "/api-public/v2/team/" + testTeamSlug + "/rotations"
 )
 
 func TestTeamGrants(t *testing.T) {
@@ -351,7 +352,8 @@ func TestTeamRevokeKeepsVendorErrorBody(t *testing.T) {
 	}
 }
 
-func TestTeamRevokePreconditions(t *testing.T) {
+// Without a configured replacement, or when removing the replacement user itself, no replacement is sent.
+func TestTeamRevokeWithoutReplacement(t *testing.T) {
 	tests := []struct {
 		name        string
 		replacement string
@@ -362,16 +364,90 @@ func TestTeamRevokePreconditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f, c := newFakeVictorOps(t, nil)
+			f, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+				"DELETE " + membersPath + "/alice": respond(http.StatusOK, `{}`),
+			})
+			team := testTeamResource(t)
+			g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
+
+			if _, err := newTeamBuilder(c, tt.replacement).Revoke(context.Background(), g); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			reqs := f.all()
+			if len(reqs) != 1 {
+				t.Fatalf("expected 1 request, got %d", len(reqs))
+			}
+			if strings.TrimSpace(reqs[0].body) != `{}` {
+				t.Errorf("unexpected body %q", reqs[0].body)
+			}
+		})
+	}
+}
+
+func TestTeamRevokeReplacementRequired(t *testing.T) {
+	tests := []struct {
+		name        string
+		replacement string
+		wantAction  string
+	}{
+		{name: "replacement not configured", replacement: "", wantAction: "set Removal replacement user (removal-replacement-user)"},
+		{name: "replacement is the removed user", replacement: "alice", wantAction: "so set a different user"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+				"DELETE " + membersPath + "/alice": respond(http.StatusInternalServerError, `{"error":"Unable to update team"}`),
+				"GET " + rotationsPath: respond(http.StatusOK,
+					`{"rotations":[{"label":"Primary","shifts":[{"label":"Weekly","shiftMembers":[{"username":"Alice"}]}]}]}`),
+			})
 			team := testTeamResource(t)
 			g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
 
 			_, err := newTeamBuilder(c, tt.replacement).Revoke(context.Background(), g)
-			if status.Code(err) != codes.FailedPrecondition {
-				t.Errorf("expected FailedPrecondition, got %v", err)
+			if !errors.Is(err, client.ErrReplacementRequired) {
+				t.Errorf("expected ErrReplacementRequired, got %v", err)
 			}
-			if n := len(f.all()); n != 0 {
-				t.Errorf("expected no HTTP calls, got %d", n)
+			if status.Code(err) != codes.FailedPrecondition {
+				t.Errorf("expected FailedPrecondition, got %v", status.Code(err))
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantAction) {
+				t.Errorf("expected error to contain %q, got %v", tt.wantAction, err)
+			}
+			if n := f.count(http.MethodGet, rotationsPath); n != 1 {
+				t.Errorf("expected 1 rotation lookup, got %d", n)
+			}
+		})
+	}
+}
+
+// Without a replacement, a 500 is attributed to the missing replacement only when the rotation lookup confirms it.
+func TestTeamRevokeWithoutReplacementServerErrorStaysRetryable(t *testing.T) {
+	tests := []struct {
+		name   string
+		lookup http.HandlerFunc
+	}{
+		{name: "not in a rotation", lookup: respond(http.StatusOK,
+			`{"rotations":[{"label":"Primary","shifts":[{"label":"Weekly","shiftMembers":[{"username":"bob"}]}]}]}`)},
+		{name: "lookup fails", lookup: respond(http.StatusForbidden, `{"message":"forbidden"}`)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+				"DELETE " + membersPath + "/alice": respond(http.StatusInternalServerError, `{"error":"Unable to update team"}`),
+				"GET " + rotationsPath:             tt.lookup,
+			})
+			team := testTeamResource(t)
+			g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
+
+			_, err := newTeamBuilder(c, "").Revoke(context.Background(), g)
+			if errors.Is(err, client.ErrReplacementRequired) {
+				t.Errorf("500 should not be reported as a missing replacement: %v", err)
+			}
+			if status.Code(err) != codes.Unavailable {
+				t.Errorf("expected Unavailable, got %v", err)
 			}
 		})
 	}

@@ -58,7 +58,25 @@ type addTeamMemberBody struct {
 }
 
 type removeTeamMemberBody struct {
-	Replacement string `json:"replacement"`
+	Replacement string `json:"replacement,omitempty"`
+}
+
+type listTeamRotationsResponse struct {
+	Rotations []Rotation `json:"rotations"`
+}
+
+type Rotation struct {
+	Label  string          `json:"label"`
+	Shifts []RotationShift `json:"shifts"`
+}
+
+type RotationShift struct {
+	Label        string        `json:"label"`
+	ShiftMembers []ShiftMember `json:"shiftMembers"`
+}
+
+type ShiftMember struct {
+	Username string `json:"username"`
 }
 
 type TeamsOnCallResponse struct {
