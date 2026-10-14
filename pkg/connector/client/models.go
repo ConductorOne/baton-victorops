@@ -58,7 +58,7 @@ type addTeamMemberBody struct {
 }
 
 type removeTeamMemberBody struct {
-	Replacement string `json:"replacement"`
+	Replacement string `json:"replacement,omitempty"`
 }
 
 type TeamsOnCallResponse struct {

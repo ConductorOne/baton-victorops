@@ -28,7 +28,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_user
+// Doc URL: https://portal.victorops.com/public/api-docs.html#!/Users/get_api_public_v1_user
 func (s *Server) handleListUsers(w http.ResponseWriter, _ *http.Request) {
 	users := s.state.ListUsers()
 	// VictorOps returns users as an array-of-arrays ([][]User). The connector iterates over
@@ -36,12 +36,22 @@ func (s *Server) handleListUsers(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]any{"users": []any{users}})
 }
 
-// Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team
+// Doc URL: https://portal.victorops.com/public/api-docs.html#!/Users/get_api_public_v1_user_user
+func (s *Server) handleGetUser(w http.ResponseWriter, r *http.Request) {
+	u, ok := s.state.GetUser(r.PathValue("username"))
+	if !ok {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	writeJSON(w, u)
+}
+
+// Doc URL: https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team
 func (s *Server) handleListTeams(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, s.state.ListTeams())
 }
 
-// Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team_team_members
+// Doc URL: https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team_team_members
 func (s *Server) handleListTeamMembers(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	usernames, ok := s.state.GetTeamMembers(slug)
@@ -65,7 +75,7 @@ func (s *Server) handleListTeamMembers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"members": members})
 }
 
-// Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team_team_admins
+// Doc URL: https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team_team_admins
 func (s *Server) handleListTeamAdmins(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	usernames, ok := s.state.GetTeamAdmins(slug)
@@ -89,7 +99,7 @@ func (s *Server) handleListTeamAdmins(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"teamAdmins": admins})
 }
 
-// Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/post_api_public_v1_team_team_members
+// Doc URL: https://portal.victorops.com/public/api-docs.html#!/Teams/post_api_public_v1_team_team_members
 func (s *Server) handleAddTeamMember(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	var body struct {
@@ -116,19 +126,26 @@ func (s *Server) handleAddTeamMember(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{})
 }
 
-// Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/delete_api_public_v1_team_team_members_user
+// Doc URL: https://portal.victorops.com/public/api-docs.html#!/Teams/delete_api_public_v1_team_team_members_user
 func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	username := r.PathValue("username")
 	var body struct {
-		Replacement string `json:"replacement"`
+		Replacement *string `json:"replacement"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Replacement == "" {
-		writeError(w, http.StatusBadRequest, "replacement is required")
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "malformed request body")
 		return
 	}
-	if _, ok := s.state.GetUser(body.Replacement); !ok {
-		writeError(w, http.StatusUnprocessableEntity, "replacement team member not found")
+	// The live API answers 500, not the documented 422, for an empty or unknown replacement,
+	// and for a member currently on call removed without one.
+	if body.Replacement == nil {
+		if s.state.IsOnCall(slug, username) {
+			writeError(w, http.StatusInternalServerError, "Unable to update team")
+			return
+		}
+	} else if _, ok := s.state.GetUser(*body.Replacement); !ok {
+		writeError(w, http.StatusInternalServerError, "Unable to update team")
 		return
 	}
 	teamExists, _ := s.state.RemoveTeamMember(slug, username)
@@ -140,7 +157,7 @@ func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, map[string]any{})
 }
 
-// Doc URL: https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_oncall_current
+// Doc URL: https://portal.victorops.com/public/api-docs.html#!/On45call/get_api_public_v1_oncall_current
 func (s *Server) handleOnCallCurrent(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, map[string]any{"teamsOnCall": s.state.GetTeamsOnCall()})
 }

@@ -6,7 +6,7 @@ import (
 )
 
 // User mirrors the shape from
-// https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_user
+// https://portal.victorops.com/public/api-docs.html#!/Users/get_api_public_v1_user
 type User struct {
 	FirstName           string `json:"firstName"`
 	LastName            string `json:"lastName"`
@@ -19,7 +19,7 @@ type User struct {
 }
 
 // Team mirrors the shape from
-// https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team
+// https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team
 type Team struct {
 	SelfUrl       string `json:"_selfUrl,omitempty"`
 	MembersUrl    string `json:"_membersUrl,omitempty"`
@@ -34,7 +34,7 @@ type Team struct {
 }
 
 // TeamMember mirrors the shape from
-// https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team_team_members
+// https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team_team_members
 type TeamMember struct {
 	Username  string `json:"username"`
 	FirstName string `json:"firstName"`
@@ -44,7 +44,7 @@ type TeamMember struct {
 }
 
 // TeamMemberAdmin mirrors the shape from
-// https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_team_team_admins
+// https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team_team_admins
 type TeamMemberAdmin struct {
 	Username  string `json:"username"`
 	FirstName string `json:"firstName"`
@@ -53,7 +53,7 @@ type TeamMemberAdmin struct {
 }
 
 // Policy, OnCallUserInfo, OnCallUser, OnCallInfo, TeamOnCall mirror the shape from
-// https://portal.victorops.com/public/api-doc.html#!/API_Public/get_api_public_v1_oncall_current
+// https://portal.victorops.com/public/api-docs.html#!/On45call/get_api_public_v1_oncall_current
 type Policy struct {
 	Name string `json:"name"`
 	Slug string `json:"slug"`
@@ -182,6 +182,25 @@ func (s *State) RemoveTeamMember(teamSlug, username string) (bool, bool) {
 	}
 	s.members[teamSlug] = slices.DeleteFunc(s.members[teamSlug], func(u string) bool { return u == username })
 	return true, true
+}
+
+// IsOnCall reports whether username is currently on call for the team.
+func (s *State) IsOnCall(slug, username string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, team := range s.teamsOnCall {
+		if team.Team.Slug != slug {
+			continue
+		}
+		for _, onCall := range team.OnCallNow {
+			for _, user := range onCall.Users {
+				if user.OnCallUser.Username == username {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (s *State) GetTeamsOnCall() []TeamOnCall {

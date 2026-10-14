@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
+
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 )
 
 func (c *VictorOpsClient) ListTeams(ctx context.Context) ([]Team, error) {
@@ -60,8 +63,11 @@ func (c *VictorOpsClient) AddUserTeam(ctx context.Context, teamId, username stri
 	return nil
 }
 
-// RemoveUserTeam removes username from the team. The API requires a replacement when the user is on call
-// (rotations or escalation policies), and answers 422 when the replacement is not valid.
+// RemoveUserTeam removes username from the team. An empty replacement is left out of the body.
+// A 422, documented for an invalid replacement, is returned as ErrInvalidReplacement. The live API
+// answers 500 instead, both for an on-call user removed without a replacement and for an unknown
+// replacement, so a 500 is returned as ErrInvalidReplacement only when a lookup confirms the
+// replacement does not exist.
 func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, replacement string) error {
 	body := removeTeamMemberBody{
 		Replacement: replacement,
@@ -71,13 +77,47 @@ func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, 
 
 	statusCode, err := c.doRequest(ctx, http.MethodDelete, endPoint, nil, body)
 	if err != nil {
-		if statusCode == http.StatusUnprocessableEntity {
+		switch statusCode {
+		case http.StatusUnprocessableEntity:
 			return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
+		case http.StatusInternalServerError:
+			if replacement != "" {
+				if exists, lookupErr := c.UserExists(ctx, replacement); lookupErr == nil && !exists {
+					return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
+				}
+			}
 		}
 		return err
 	}
 
 	return nil
+}
+
+// IsOnCall reports whether username is currently on call for the team.
+func (c *VictorOpsClient) IsOnCall(ctx context.Context, teamId, username string) (bool, error) {
+	var response TeamsOnCallResponse
+
+	endPoint := c.getUrl(OnCallCurrentEndpoint)
+
+	_, err := c.doRequest(ctx, http.MethodGet, endPoint, &response, nil, uhttp.WithNoCache())
+	if err != nil {
+		return false, err
+	}
+
+	for _, team := range response.TeamsOnCall {
+		if team.Team.Slug != teamId {
+			continue
+		}
+		for _, onCall := range team.OnCallNow {
+			for _, user := range onCall.Users {
+				if strings.EqualFold(user.OnCallUser.Username, username) {
+					return true, nil
+				}
+			}
+		}
+	}
+
+	return false, nil
 }
 
 func (c *VictorOpsClient) ListCurrentOnCallTeamsWithUsers(ctx context.Context) (*TeamsOnCallResponse, error) {

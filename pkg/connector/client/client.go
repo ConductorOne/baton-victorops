@@ -15,6 +15,7 @@ var (
 	DefaultBaseURL = "https://api.victorops.com"
 
 	UsersEndpoint = "/api-public/v1/user"
+	UserEndpoint  = "/api-public/v1/user/%s"
 
 	TeamsEndpoint       = "/api-public/v1/team"
 	TeamMembersEndpoint = "/api-public/v1/team/%s/members"
@@ -87,6 +88,7 @@ func (c *VictorOpsClient) doRequest(
 	urlAddress *url.URL,
 	res interface{},
 	body interface{},
+	reqOptions ...uhttp.RequestOption,
 ) (int, error) {
 	var resp *http.Response
 
@@ -94,6 +96,7 @@ func (c *VictorOpsClient) doRequest(
 		uhttp.WithHeader("X-VO-Api-Id", c.clientId),
 		uhttp.WithHeader("X-VO-Api-Key", c.apiKey),
 	}
+	options = append(options, reqOptions...)
 
 	if body != nil {
 		options = append(options, uhttp.WithJSONBody(body))
