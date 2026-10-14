@@ -91,6 +91,16 @@ func respond(code int, body string) http.HandlerFunc {
 	}
 }
 
+func onCallWith(usernames ...string) http.HandlerFunc {
+	users := make([]string, len(usernames))
+	for i, u := range usernames {
+		users[i] = `{"onCallUser":{"username":"` + u + `"}}`
+	}
+	return respond(http.StatusOK, `{"teamsOnCall":[`+
+		`{"team":{"slug":"other-team"},"onCallNow":[{"users":[{"onCallUser":{"username":"alice"}}]}]},`+
+		`{"team":{"slug":"`+testTeamSlug+`"},"onCallNow":[{"users":[`+strings.Join(users, ",")+`]}]}]}`)
+}
+
 func testTeamResource(t *testing.T) *v2.Resource {
 	t.Helper()
 
@@ -120,9 +130,9 @@ func testEntitlement(team *v2.Resource, slug string) *v2.Entitlement {
 }
 
 const (
-	membersPath   = "/api-public/v1/team/" + testTeamSlug + "/members"
-	adminsPath    = "/api-public/v1/team/" + testTeamSlug + "/admins"
-	rotationsPath = "/api-public/v2/team/" + testTeamSlug + "/rotations"
+	membersPath = "/api-public/v1/team/" + testTeamSlug + "/members"
+	adminsPath  = "/api-public/v1/team/" + testTeamSlug + "/admins"
+	onCallPath  = "/api-public/v1/oncall/current"
 )
 
 func TestTeamGrants(t *testing.T) {
@@ -277,6 +287,7 @@ func TestTeamGrantRevokeAdminRejected(t *testing.T) {
 func TestTeamRevoke(t *testing.T) {
 	removePath := membersPath + "/alice"
 	f, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+		"GET " + onCallPath:    onCallWith("alice"),
 		"DELETE " + removePath: respond(http.StatusOK, `{}`),
 	})
 	team := testTeamResource(t)
@@ -287,14 +298,17 @@ func TestTeamRevoke(t *testing.T) {
 	}
 
 	reqs := f.all()
-	if len(reqs) != 1 {
-		t.Fatalf("expected 1 request, got %d", len(reqs))
+	if len(reqs) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(reqs))
 	}
-	if reqs[0].method != http.MethodDelete || reqs[0].path != removePath {
+	if reqs[0].method != http.MethodGet || reqs[0].path != onCallPath {
 		t.Errorf("unexpected request %s %s", reqs[0].method, reqs[0].path)
 	}
-	if strings.TrimSpace(reqs[0].body) != `{"replacement":"oncall-lead"}` {
-		t.Errorf("unexpected body %q", reqs[0].body)
+	if reqs[1].method != http.MethodDelete || reqs[1].path != removePath {
+		t.Errorf("unexpected request %s %s", reqs[1].method, reqs[1].path)
+	}
+	if strings.TrimSpace(reqs[1].body) != `{"replacement":"oncall-lead"}` {
+		t.Errorf("unexpected body %q", reqs[1].body)
 	}
 }
 
@@ -320,21 +334,23 @@ func TestTeamRevokeEscapesPathSegments(t *testing.T) {
 		"..":  membersPath + "/%2E%2E",
 		"a b": membersPath + "/a%20b",
 	} {
-		f, c := newFakeVictorOps(t, nil)
+		f, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+			"GET " + onCallPath: onCallWith(),
+		})
 		team := testTeamResource(t)
 		g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, username)}
 
 		_, _ = newTeamBuilder(c, "oncall-lead").Revoke(context.Background(), g)
 
-		reqs := f.all()
-		if len(reqs) != 1 || reqs[0].path != want {
-			t.Errorf("username %q: expected one request to %s, got %v", username, want, reqs)
+		if n := f.count(http.MethodDelete, want); n != 1 {
+			t.Errorf("username %q: expected one request to %s, got %v", username, want, f.all())
 		}
 	}
 }
 
 func TestTeamRevokeKeepsVendorErrorBody(t *testing.T) {
 	_, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+		"GET " + onCallPath:                onCallWith("alice"),
 		"DELETE " + membersPath + "/alice": respond(http.StatusBadRequest, `{"error":"unexpected payload"}`),
 	})
 	team := testTeamResource(t)
@@ -352,34 +368,27 @@ func TestTeamRevokeKeepsVendorErrorBody(t *testing.T) {
 	}
 }
 
-// Without a configured replacement, or when removing the replacement user itself, no replacement is sent.
+// Members not on call for the team are removed without a replacement, even when one is configured.
 func TestTeamRevokeWithoutReplacement(t *testing.T) {
-	tests := []struct {
-		name        string
-		replacement string
-	}{
-		{name: "replacement not configured", replacement: ""},
-		{name: "replacement is the removed user", replacement: "Alice"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, replacement := range []string{"", "oncall-lead", "Alice"} {
+		t.Run("replacement "+replacement, func(t *testing.T) {
 			f, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+				"GET " + onCallPath:                onCallWith("bob"),
 				"DELETE " + membersPath + "/alice": respond(http.StatusOK, `{}`),
 			})
 			team := testTeamResource(t)
 			g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
 
-			if _, err := newTeamBuilder(c, tt.replacement).Revoke(context.Background(), g); err != nil {
+			if _, err := newTeamBuilder(c, replacement).Revoke(context.Background(), g); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
 			reqs := f.all()
-			if len(reqs) != 1 {
-				t.Fatalf("expected 1 request, got %d", len(reqs))
+			if len(reqs) != 2 {
+				t.Fatalf("expected 2 requests, got %d", len(reqs))
 			}
-			if strings.TrimSpace(reqs[0].body) != `{}` {
-				t.Errorf("unexpected body %q", reqs[0].body)
+			if strings.TrimSpace(reqs[1].body) != `{}` {
+				t.Errorf("unexpected body %q", reqs[1].body)
 			}
 		})
 	}
@@ -398,63 +407,58 @@ func TestTeamRevokeReplacementRequired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
-				"DELETE " + membersPath + "/alice": respond(http.StatusInternalServerError, `{"error":"Unable to update team"}`),
-				"GET " + rotationsPath: respond(http.StatusOK,
-					`{"rotations":[{"label":"Primary","shifts":[{"label":"Weekly","shiftMembers":[{"username":"Alice"}]}]}]}`),
+				"GET " + onCallPath: onCallWith("Alice"),
 			})
 			team := testTeamResource(t)
 			g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
 
 			_, err := newTeamBuilder(c, tt.replacement).Revoke(context.Background(), g)
-			if !errors.Is(err, client.ErrReplacementRequired) {
-				t.Errorf("expected ErrReplacementRequired, got %v", err)
-			}
 			if status.Code(err) != codes.FailedPrecondition {
 				t.Errorf("expected FailedPrecondition, got %v", status.Code(err))
 			}
 			if err == nil || !strings.Contains(err.Error(), tt.wantAction) {
 				t.Errorf("expected error to contain %q, got %v", tt.wantAction, err)
 			}
-			if n := f.count(http.MethodGet, rotationsPath); n != 1 {
-				t.Errorf("expected 1 rotation lookup, got %d", n)
+			if n := f.count(http.MethodDelete, membersPath+"/alice"); n != 0 {
+				t.Errorf("expected no remove request, got %d", n)
 			}
 		})
 	}
 }
 
-// Without a replacement, a 500 is attributed to the missing replacement only when the rotation lookup confirms it.
-func TestTeamRevokeWithoutReplacementServerErrorStaysRetryable(t *testing.T) {
-	tests := []struct {
-		name   string
-		lookup http.HandlerFunc
-	}{
-		{name: "not in a rotation", lookup: respond(http.StatusOK,
-			`{"rotations":[{"label":"Primary","shifts":[{"label":"Weekly","shiftMembers":[{"username":"bob"}]}]}]}`)},
-		{name: "lookup fails", lookup: respond(http.StatusForbidden, `{"message":"forbidden"}`)},
+func TestTeamRevokeOnCallLookupFails(t *testing.T) {
+	f, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+		"GET " + onCallPath: respond(http.StatusForbidden, `{"message":"forbidden"}`),
+	})
+	team := testTeamResource(t)
+	g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
+
+	_, err := newTeamBuilder(c, "oncall-lead").Revoke(context.Background(), g)
+	if status.Code(err) != codes.PermissionDenied {
+		t.Errorf("expected PermissionDenied, got %v", err)
 	}
+	if n := f.count(http.MethodDelete, membersPath+"/alice"); n != 0 {
+		t.Errorf("expected no remove request, got %d", n)
+	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
-				"DELETE " + membersPath + "/alice": respond(http.StatusInternalServerError, `{"error":"Unable to update team"}`),
-				"GET " + rotationsPath:             tt.lookup,
-			})
-			team := testTeamResource(t)
-			g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
+func TestTeamRevokeWithoutReplacementServerErrorStaysRetryable(t *testing.T) {
+	_, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+		"GET " + onCallPath:                onCallWith("bob"),
+		"DELETE " + membersPath + "/alice": respond(http.StatusInternalServerError, `{"error":"Unable to update team"}`),
+	})
+	team := testTeamResource(t)
+	g := &v2.Grant{Entitlement: testEntitlement(team, teamMemberEntitlement), Principal: testUserResource(t, "alice")}
 
-			_, err := newTeamBuilder(c, "").Revoke(context.Background(), g)
-			if errors.Is(err, client.ErrReplacementRequired) {
-				t.Errorf("500 should not be reported as a missing replacement: %v", err)
-			}
-			if status.Code(err) != codes.Unavailable {
-				t.Errorf("expected Unavailable, got %v", err)
-			}
-		})
+	_, err := newTeamBuilder(c, "").Revoke(context.Background(), g)
+	if status.Code(err) != codes.Unavailable {
+		t.Errorf("expected Unavailable, got %v", err)
 	}
 }
 
 func TestTeamRevokeInvalidReplacement(t *testing.T) {
 	_, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+		"GET " + onCallPath:                onCallWith("alice"),
 		"DELETE " + membersPath + "/alice": respond(http.StatusUnprocessableEntity, `{"message":"replacement not found"}`),
 	})
 	team := testTeamResource(t)
@@ -481,6 +485,7 @@ func TestTeamRevokeInvalidReplacement(t *testing.T) {
 // The live API answers 500 for an unknown replacement, so Revoke checks whether the replacement exists.
 func TestTeamRevokeServerErrorUnknownReplacement(t *testing.T) {
 	f, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+		"GET " + onCallPath:                onCallWith("alice"),
 		"DELETE " + membersPath + "/alice": respond(http.StatusInternalServerError, `{"message":"internal error"}`),
 	})
 	team := testTeamResource(t)
@@ -513,6 +518,7 @@ func TestTeamRevokeServerErrorStaysRetryable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
+				"GET " + onCallPath:                   onCallWith("alice"),
 				"DELETE " + membersPath + "/alice":    respond(http.StatusInternalServerError, `{"message":"internal error"}`),
 				"GET /api-public/v1/user/oncall-lead": tt.lookup,
 			})

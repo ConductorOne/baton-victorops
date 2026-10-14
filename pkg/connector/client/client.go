@@ -21,17 +21,12 @@ var (
 	TeamMembersEndpoint = "/api-public/v1/team/%s/members"
 	TeamAdminsEndpoint  = "/api-public/v1/team/%s/admins"
 
-	TeamRotationsEndpoint = "/api-public/v2/team/%s/rotations"
-
 	AddTeamMemberEndpoint    = "/api-public/v1/team/%s/members"
 	RemoveTeamMemberEndpoint = "/api-public/v1/team/%s/members/%s"
 	OnCallCurrentEndpoint    = "/api-public/v1/oncall/current"
 )
 
-var (
-	ErrInvalidReplacement  = errors.New("replacement user was not found or is not valid")
-	ErrReplacementRequired = errors.New("a replacement user is required because the user is in a team rotation")
-)
+var ErrInvalidReplacement = errors.New("replacement user was not found or is not valid")
 
 type VictorOpsClient struct {
 	httpClient *uhttp.BaseHttpClient

@@ -63,9 +63,9 @@ func (c *VictorOpsClient) AddUserTeam(ctx context.Context, teamId, username stri
 	return nil
 }
 
-// RemoveUserTeam removes username from the team. An empty replacement sends no replacement, which the API accepts
-// unless the user is on call. The live API answers 500 both for a missing replacement and for an invalid one
-// (documented as 422), so a 500 is attributed to the replacement only after a lookup confirms it.
+// RemoveUserTeam removes username from the team. An empty replacement sends none, which the API rejects with a 500
+// when the user is on call. The live API also answers 500 for an unknown replacement (documented as 422),
+// so a 500 is attributed to the replacement only after a lookup confirms it.
 func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, replacement string) error {
 	body := removeTeamMemberBody{
 		Replacement: replacement,
@@ -80,9 +80,6 @@ func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, 
 			return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
 		case http.StatusInternalServerError:
 			if replacement == "" {
-				if inRotation, lookupErr := c.IsInTeamRotation(ctx, teamId, username); lookupErr == nil && inRotation {
-					return fmt.Errorf("%w: %w", ErrReplacementRequired, err)
-				}
 				return err
 			}
 			if exists, lookupErr := c.UserExists(ctx, replacement); lookupErr == nil && !exists {
@@ -95,21 +92,24 @@ func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, 
 	return nil
 }
 
-// IsInTeamRotation reports whether username is a shift member of any of the team's rotations.
-func (c *VictorOpsClient) IsInTeamRotation(ctx context.Context, teamId, username string) (bool, error) {
-	var response listTeamRotationsResponse
+// IsOnCall reports whether username is currently on call for the team.
+func (c *VictorOpsClient) IsOnCall(ctx context.Context, teamId, username string) (bool, error) {
+	var response TeamsOnCallResponse
 
-	endPoint := c.getUrl(fmt.Sprintf(TeamRotationsEndpoint, pathSegment(teamId)))
+	endPoint := c.getUrl(OnCallCurrentEndpoint)
 
 	_, err := c.doRequest(ctx, http.MethodGet, endPoint, &response, nil, uhttp.WithNoCache())
 	if err != nil {
 		return false, err
 	}
 
-	for _, rotation := range response.Rotations {
-		for _, shift := range rotation.Shifts {
-			for _, member := range shift.ShiftMembers {
-				if strings.EqualFold(member.Username, username) {
+	for _, team := range response.TeamsOnCall {
+		if team.Team.Slug != teamId {
+			continue
+		}
+		for _, onCall := range team.OnCallNow {
+			for _, user := range onCall.Users {
+				if strings.EqualFold(user.OnCallUser.Username, username) {
 					return true, nil
 				}
 			}

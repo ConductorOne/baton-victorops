@@ -138,9 +138,9 @@ func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	// The live API answers 500, not the documented 422, for an empty or unknown replacement,
-	// and for a member in a rotation removed without one.
+	// and for a member currently on call removed without one.
 	if body.Replacement == nil {
-		if s.state.IsInTeamRotation(slug, username) {
+		if s.state.IsOnCall(slug, username) {
 			writeError(w, http.StatusInternalServerError, "Unable to update team")
 			return
 		}
@@ -155,16 +155,6 @@ func (s *Server) handleRemoveTeamMember(w http.ResponseWriter, r *http.Request) 
 	}
 	// Idempotent: removing a non-member is not an error.
 	writeJSON(w, map[string]any{})
-}
-
-// Doc URL: https://portal.victorops.com/public/api-docs.html#!/Rotations/get_api_public_v2_team_team_rotations
-func (s *Server) handleListTeamRotations(w http.ResponseWriter, r *http.Request) {
-	rotations, ok := s.state.GetTeamRotations(r.PathValue("slug"))
-	if !ok {
-		writeError(w, http.StatusNotFound, "team not found")
-		return
-	}
-	writeJSON(w, map[string]any{"rotations": rotations})
 }
 
 // Doc URL: https://portal.victorops.com/public/api-docs.html#!/On45call/get_api_public_v1_oncall_current

@@ -43,9 +43,6 @@ func main() {
 	// Doc URL: https://portal.victorops.com/public/api-docs.html#!/Teams/get_api_public_v1_team_team_admins
 	mux.HandleFunc("GET /api-public/v1/team/{slug}/admins", server.requireAuth(server.handleListTeamAdmins))
 
-	// Doc URL: https://portal.victorops.com/public/api-docs.html#!/Rotations/get_api_public_v2_team_team_rotations
-	mux.HandleFunc("GET /api-public/v2/team/{slug}/rotations", server.requireAuth(server.handleListTeamRotations))
-
 	// Doc URL: https://portal.victorops.com/public/api-docs.html#!/On45call/get_api_public_v1_oncall_current
 	mux.HandleFunc("GET /api-public/v1/oncall/current", server.requireAuth(server.handleOnCallCurrent))
 

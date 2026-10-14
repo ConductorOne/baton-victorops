@@ -164,24 +164,33 @@ func (o *teamBuilder) Revoke(ctx context.Context, grant *v2.Grant) (annotations.
 	teamId := grant.Entitlement.Resource.Id.Resource
 	username := grant.Principal.Id.Resource
 
-	// A user cannot replace themselves, so the configured replacement user is removed without one.
-	replacement := o.removalReplacementUser
-	if strings.EqualFold(replacement, username) {
-		replacement = ""
+	onCall, err := o.client.IsOnCall(ctx, teamId, username)
+	if err != nil {
+		return nil, fmt.Errorf("baton-victorops: failed to check whether user %s is on call for team %s: %w", username, teamId, err)
+	}
+
+	// Not in the vendor docs, which tie the replacement to rotation membership: on a live tenant, removing a rotation
+	// member who is not currently on call succeeds without a replacement, and a replacement sent for them is not
+	// added to the rotation. So a replacement is sent, and required, only for users currently on call.
+	// A user cannot replace themselves.
+	replacement := ""
+	if onCall {
+		if o.removalReplacementUser == "" {
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"baton-victorops: cannot remove user %s from team %s because they are currently on call and VictorOps requires a replacement; "+
+					"set Removal replacement user (removal-replacement-user) in the connector configuration", username, teamId)
+		}
+		if strings.EqualFold(o.removalReplacementUser, username) {
+			return nil, status.Errorf(codes.FailedPrecondition,
+				"baton-victorops: cannot remove user %s from team %s because they are currently on call and VictorOps requires a replacement; "+
+					"they are the configured Removal replacement user (removal-replacement-user), so set a different user in the connector configuration", username, teamId)
+		}
+		replacement = o.removalReplacementUser
 	}
 
 	// A 404 is documented only as team-not-found, so it is not treated as already revoked.
-	err := o.client.RemoveUserTeam(ctx, teamId, username, replacement)
+	err = o.client.RemoveUserTeam(ctx, teamId, username, replacement)
 	if err != nil {
-		if errors.Is(err, client.ErrReplacementRequired) {
-			action := "set Removal replacement user (removal-replacement-user) in the connector configuration"
-			if replacement != o.removalReplacementUser {
-				action = "they are the configured Removal replacement user (removal-replacement-user), so set a different user in the connector configuration"
-			}
-			return nil, uhttp.WrapErrors(codes.FailedPrecondition,
-				fmt.Sprintf("baton-victorops: cannot remove user %s from team %s because they are in a team rotation and VictorOps requires a replacement; %s",
-					username, teamId, action), err)
-		}
 		if errors.Is(err, client.ErrInvalidReplacement) {
 			// FailedPrecondition so the error is not retried as the vendor's 5xx.
 			return nil, uhttp.WrapErrors(codes.FailedPrecondition,
