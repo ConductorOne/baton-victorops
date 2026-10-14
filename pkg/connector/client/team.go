@@ -63,9 +63,11 @@ func (c *VictorOpsClient) AddUserTeam(ctx context.Context, teamId, username stri
 	return nil
 }
 
-// RemoveUserTeam removes username from the team. An empty replacement sends none, which the API rejects with a 500
-// when the user is on call. The live API also answers 500 for an unknown replacement (documented as 422),
-// so a 500 is attributed to the replacement only after a lookup confirms it.
+// RemoveUserTeam removes username from the team. An empty replacement is left out of the body.
+// A 422, documented for an invalid replacement, is returned as ErrInvalidReplacement. The live API
+// answers 500 instead, both for an on-call user removed without a replacement and for an unknown
+// replacement, so a 500 is returned as ErrInvalidReplacement only when a lookup confirms the
+// replacement does not exist.
 func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, replacement string) error {
 	body := removeTeamMemberBody{
 		Replacement: replacement,
@@ -79,11 +81,10 @@ func (c *VictorOpsClient) RemoveUserTeam(ctx context.Context, teamId, username, 
 		case http.StatusUnprocessableEntity:
 			return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
 		case http.StatusInternalServerError:
-			if replacement == "" {
-				return err
-			}
-			if exists, lookupErr := c.UserExists(ctx, replacement); lookupErr == nil && !exists {
-				return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
+			if replacement != "" {
+				if exists, lookupErr := c.UserExists(ctx, replacement); lookupErr == nil && !exists {
+					return fmt.Errorf("%w: %w", ErrInvalidReplacement, err)
+				}
 			}
 		}
 		return err

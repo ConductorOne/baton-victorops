@@ -401,7 +401,7 @@ func TestTeamRevokeReplacementRequired(t *testing.T) {
 		wantAction  string
 	}{
 		{name: "replacement not configured", replacement: "", wantAction: "set Removal replacement user (removal-replacement-user)"},
-		{name: "replacement is the removed user", replacement: "alice", wantAction: "so set a different user"},
+		{name: "replacement is the removed user", replacement: "alice", wantAction: "cannot be their own replacement"},
 	}
 
 	for _, tt := range tests {
@@ -474,7 +474,7 @@ func TestTeamRevokeInvalidReplacement(t *testing.T) {
 	if status.Code(err) != codes.FailedPrecondition {
 		t.Errorf("expected FailedPrecondition, got %v", status.Code(err))
 	}
-	if !strings.Contains(err.Error(), "removal-replacement-user ghost exists in VictorOps") {
+	if !strings.Contains(err.Error(), "Removal replacement user (removal-replacement-user) ghost exists in VictorOps") {
 		t.Errorf("expected error to mention the replacement user and team, got %v", err)
 	}
 	if !strings.Contains(err.Error(), "replacement not found") {
@@ -482,7 +482,7 @@ func TestTeamRevokeInvalidReplacement(t *testing.T) {
 	}
 }
 
-// The live API answers 500 for an unknown replacement, so Revoke checks whether the replacement exists.
+// The live API answers 500 for an unknown replacement, so the client checks whether the replacement exists.
 func TestTeamRevokeServerErrorUnknownReplacement(t *testing.T) {
 	f, c := newFakeVictorOps(t, map[string]http.HandlerFunc{
 		"GET " + onCallPath:                onCallWith("alice"),
@@ -498,7 +498,7 @@ func TestTeamRevokeServerErrorUnknownReplacement(t *testing.T) {
 	if status.Code(err) != codes.FailedPrecondition {
 		t.Errorf("expected FailedPrecondition, got %v", status.Code(err))
 	}
-	if err == nil || !strings.Contains(err.Error(), "removal-replacement-user ghost exists in VictorOps") {
+	if err == nil || !strings.Contains(err.Error(), "Removal replacement user (removal-replacement-user) ghost exists in VictorOps") {
 		t.Errorf("expected error to name the replacement user, got %v", err)
 	}
 	if n := f.count(http.MethodGet, "/api-public/v1/user/ghost"); n != 1 {
